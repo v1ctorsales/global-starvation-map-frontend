@@ -30,8 +30,7 @@ const indicatorLabels = {
   undernourishment: "Undernourishment",
   poverty: "Poverty Rate",
   population: "Population",
-  food_production: "Food Production",
-  food_production_percapita: "Food Production per Capita",
+  food_calories: "Food Calories",
 };
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -73,7 +72,7 @@ export default function WorldMap() {
         style={{ width: "100%", height: "100vh" }}
       >
         <ZoomableGroup
-          center={[0, 20]}
+          center={[0, 0]}
           zoom={1}
           minZoom={1}
           maxZoom={8}
