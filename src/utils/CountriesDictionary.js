@@ -1,16 +1,13 @@
 // ==============================
 // 🌍 CountriesDictionary.js
-// Mapeia nomes comuns <-> backend <-> GeoJSON
+// Nome comum ↔ backend ↔ GeoJSON
 // ==============================
 
-// 🔹 Backend espera nomes oficiais (ex: "Russian Federation")
-// ==============================
-// 🌍 CountriesDictionary.js
-// Nome comum → backend → GeoJSON
-// ==============================
+// 🔹 Backend (datasets) usa nomes oficiais (ex: "United States", "Russian Federation")
+// 🔹 GeoJSON (world-atlas) usa nomes longos (ex: "United States of America")
 
 export const COMMON_TO_BACKEND = {
-  // === Ásia ===
+  // === ÁSIA ===
   China: "China",
   "People's Republic of China": "China",
 
@@ -18,9 +15,9 @@ export const COMMON_TO_BACKEND = {
   "Republic of Korea": "Korea, Rep.",
 
   "North Korea": "Korea, Dem. People's Rep.",
-  "Dem. Rep. Korea": "Korea, Dem. People's Rep.",
   "Democratic People's Republic of Korea": "Korea, Dem. People's Rep.",
-  "Korea, Dem. People's Rep.": "Korea, Dem. People's Rep.", // <- mantém o ponto final
+  "Dem. Rep. Korea": "Korea, Dem. People's Rep.",
+  "Korea, Dem. People's Rep.": "Korea, Dem. People's Rep.",
 
   Iran: "Iran, Islamic Rep.",
   Vietnam: "Viet Nam",
@@ -30,7 +27,7 @@ export const COMMON_TO_BACKEND = {
   Turkey: "Turkiye",
   Yemen: "Yemen, Rep.",
 
-  // === África ===
+  // === ÁFRICA ===
   Egypt: "Egypt, Arab Rep.",
   "Central African Rep.": "Central African Republic",
   "Dem. Rep. Congo": "Congo, Dem. Rep.",
@@ -42,24 +39,31 @@ export const COMMON_TO_BACKEND = {
   Somaliland: "Somalia",
   "Solomon Is.": "Solomon Islands",
 
-  // === Europa ===
+  // === EUROPA ===
   Russia: "Russian Federation",
   Slovakia: "Slovak Republic",
   Macedonia: "North Macedonia",
   "The Republic of North Macedonia": "North Macedonia",
   "Bosnia and Herz.": "Bosnia and Herzegovina",
 
-  // === Américas ===
-  "United States": "United States of America",
+  // === AMÉRICAS ===
+  "United States": "United States",
+  "United States of America": "United States", // 👈 faz ambos funcionarem
+  USA: "United States",
+  US: "United States",
+
   "Dominican Rep.": "Dominican Republic",
   Venezuela: "Venezuela, RB",
 };
 
-// 🔹 GeoJSON usa nomes mais curtos (ex: "Russia")
+// 🔹 GeoJSON (world-atlas) — usado para desenhar o mapa
 export const COMMON_TO_GEOJSON = {
   China: "China",
   Russia: "Russia",
-  "United States": "United States of America",
+  "United States": "United States of America", // 👈 obrigatório para o mapa
+  "United States of America": "United States of America",
+  USA: "United States of America",
+
   "South Korea": "Korea, Republic of",
   "North Korea": "North Korea",
   "Korea, Dem. People's Rep.": "North Korea",
@@ -75,13 +79,14 @@ export const COMMON_TO_GEOJSON = {
   "Central African Republic": "Central African Rep.",
 };
 
-// 🔹 Inversos (para exibir nomes amigáveis)
+// 🔹 Inversos (para exibição)
 export const BACKEND_TO_COMMON = Object.fromEntries(
   Object.entries(COMMON_TO_BACKEND).map(([common, backend]) => [
     backend,
     common,
   ])
 );
+
 export const GEOJSON_TO_COMMON = Object.fromEntries(
   Object.entries(COMMON_TO_GEOJSON).map(([common, geojson]) => [
     geojson,
@@ -93,12 +98,8 @@ export const GEOJSON_TO_COMMON = Object.fromEntries(
 // 🧠 Funções utilitárias
 // ==============================
 
-// ==============================
-// 🧠 Funções utilitárias
-// ==============================
-
 export function normalizeCountryName(name) {
-  // normaliza pra formato do backend
+  // Converte para o formato esperado pelo backend
   return COMMON_TO_BACKEND[name] || name;
 }
 
@@ -110,24 +111,9 @@ export function getDisplayName(name) {
   return entry ? entry[0] : name;
 }
 
-// para o GeoJSON, mantemos o nome "comum"
 export function getGeoJsonName(name) {
-  return (
-    {
-      "Korea, Rep.": "South Korea",
-      "Korea, Dem. People's Rep.": "North Korea",
-      "Congo, Dem. Rep.": "Dem. Rep. Congo",
-      "Congo, Rep.": "Congo",
-      "Cote d'Ivoire": "Côte d'Ivoire",
-      "Egypt, Arab Rep.": "Egypt",
-      "Iran, Islamic Rep.": "Iran",
-      "Lao PDR": "Laos",
-      "Yemen, Rep.": "Yemen",
-      "Gambia, The": "Gambia",
-      "Venezuela, RB": "Venezuela",
-      Turkiye: "Turkey",
-      "Korea, Dem. People's Rep": "North Korea",
-      "Dem. Rep. Korea": "North Korea",
-    }[name] || name
-  );
+  // backend ou comum → nome no GeoJSON
+  const normalized = COMMON_TO_BACKEND[name] || name;
+  const geojsonName = COMMON_TO_GEOJSON[normalized] || COMMON_TO_GEOJSON[name];
+  return geojsonName || name;
 }

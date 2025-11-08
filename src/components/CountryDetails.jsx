@@ -49,6 +49,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
 
   const [compareCountries, setCompareCountries] = useState([]);
   const [compareData, setCompareData] = useState({});
+  const [showComparisons, setShowComparisons] = useState(false);
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -60,7 +61,12 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const latestCountry = compareCountries[compareCountries.length - 1];
 
   const [activePanel, setActivePanel] = useState("default");
-  const [showComparisons, setShowComparisons] = useState(false);
+  // ============================
+  // 🧮 Indicadores múltiplos
+  // ============================
+  const [selectedIndicators, setSelectedIndicators] = useState([]);
+  const [indicatorData, setIndicatorData] = useState(null);
+  const [loadingIndicators, setLoadingIndicators] = useState(false);
 
   // ============================
   // 🔍 FILTRO DINÂMICO DE PAÍSES
@@ -130,6 +136,27 @@ export default function CountryDetails({ country, indicator, onClose }) {
         .catch((err) => console.error(`Error fetching ${c}:`, err));
     });
   }, [compareCountries, indicator]);
+
+  // ============================
+  // 📊 FETCH DE INDICADORES MÚLTIPLOS
+  // ============================
+  useEffect(() => {
+    // só busca se houver 1 ou 2 indicadores selecionados
+    if (!country || selectedIndicators.length === 0) return;
+
+    const params = new URLSearchParams();
+    params.append("country", backendName);
+    selectedIndicators.forEach((ind) => params.append("indicators", ind));
+
+    setLoadingIndicators(true);
+    axios
+      .get(`http://127.0.0.1:8000/indicators?${params.toString()}`)
+      .then((res) => {
+        setIndicatorData(res.data);
+      })
+      .catch((err) => console.error("Error fetching indicators:", err))
+      .finally(() => setLoadingIndicators(false));
+  }, [country, selectedIndicators]);
 
   // ============================
   // ⚙️ UTILIDADES
@@ -257,6 +284,103 @@ export default function CountryDetails({ country, indicator, onClose }) {
     Syria: "Syrian Arab Republic",
     Laos: "Lao People's Democratic Republic",
   };
+
+  useEffect(() => {
+    if (activePanel === "indicators") {
+      setSelectedIndicators((prev) => {
+        // se já tem algo selecionado, mantém
+        if (prev.length > 0) return prev;
+        // se vier string de prop indicator, inicia com ela
+        if (indicator && typeof indicator === "string") return [indicator];
+        return prev;
+      });
+    }
+  }, [activePanel, indicator]);
+
+  const [savedCountries, setSavedCountries] = useState([]);
+
+  useEffect(() => {
+    if (activePanel === "default") {
+      // guarda o estado antes de limpar
+      setSavedCountries(compareCountries);
+      setCompareCountries([]);
+      setCompareData({});
+    } else if (
+      activePanel === "countries" &&
+      savedCountries.length > 0 &&
+      compareCountries.length === 0
+    ) {
+      // restaura os países ao voltar pra aba Countries
+      setCompareCountries(savedCountries);
+    }
+  }, [activePanel]);
+
+  // 🔹 Combina as duas séries em um único array para o Recharts
+  // Combina 1 ou 2 indicadores para o gráfico (sem normalizar)
+  // util interna: parse de ano -> número (pega os 4 dígitos)
+  const parseYear = (y) => {
+    const m = String(y ?? "").match(/\d{4}/);
+    const n = m ? Number(m[0]) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // Combina 1 ou 2 indicadores para o gráfico (sem normalizar), garantindo ano numérico
+  const multiIndicatorChartData = useMemo(() => {
+    const details = indicatorData?.details;
+    if (!details) return [];
+
+    const keys = Object.keys(details || {});
+    if (keys.length === 0) return [];
+
+    // Map por indicador: { year(number) -> value(number) }
+    const maps = {};
+    keys.forEach((k) => {
+      const rows = Array.isArray(details[k]) ? details[k] : [];
+      maps[k] = new Map(
+        rows
+          .map((d) => {
+            const y = parseYear(d.year);
+            const v = Number(d.value);
+            return [y, Number.isFinite(v) ? v : null];
+          })
+          .filter(([y, v]) => y !== null && v !== null)
+      );
+    });
+
+    // Coleção de todos os anos válidos
+    const yearsSet = new Set();
+    keys.forEach((k) => {
+      for (const y of maps[k].keys()) yearsSet.add(y);
+    });
+    const years = Array.from(yearsSet).sort((a, b) => a - b);
+
+    // Linha por ano
+    return years.map((year) => {
+      const row = { year };
+      keys.forEach((k) => {
+        row[k] = maps[k].get(year) ?? null;
+      });
+      return row;
+    });
+  }, [indicatorData]);
+
+  // ============================
+  // 🧭 Domínios e ticks por contexto
+  // ============================
+
+  // Countries → domínio baseado nos anos de todos os países
+  const countryYears = (mergedData ?? []).map((d) => d.year);
+  const countryDomain =
+    countryYears.length > 0
+      ? [Math.min(...countryYears), Math.max(...countryYears)]
+      : [0, 0];
+
+  // Indicators → domínio baseado nos anos de todos os indicadores
+  const indYears = (multiIndicatorChartData ?? []).map((d) => d.year);
+  const indDomain =
+    indYears.length > 0
+      ? [Math.min(...indYears), Math.max(...indYears)]
+      : [0, 0];
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -668,19 +792,17 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             color: "#0b2545",
                           },
                         ].map((item) => {
-                          const isSelected = Array.isArray(indicator)
-                            ? indicator.includes(item.key)
-                            : indicator === item.key;
+                          const isSelected = selectedIndicators.includes(
+                            item.key
+                          );
 
                           return (
                             <motion.button
                               key={item.key}
                               onClick={() => {
                                 setShowComparisons(false);
-                                setIndicator((prev) => {
-                                  const current = Array.isArray(prev)
-                                    ? [...prev]
-                                    : [prev];
+                                setSelectedIndicators((prev) => {
+                                  const current = [...prev];
 
                                   // se já estava selecionado → desmarca
                                   if (current.includes(item.key)) {
@@ -748,116 +870,314 @@ export default function CountryDetails({ country, indicator, onClose }) {
               {/* Painel direito */}
               <main className="p-8 flex flex-col min-w-0">
                 <div className="rounded-2xl flex-1 bg-white border border-slate-200 p-5 relative min-h-[420px] shadow-sm">
-                  <h2 className="absolute top-0 left-1/2 -translate-x-1/2 text-slate-700 font-semibold text-lg tracking-wide">
-                    {indicator.replaceAll("_", " ")}
+                  {/* título dinâmico */}
+                  <h2 className="absolute top-0 left-1/2 -translate-x-1/2 text-slate-700 font-semibold text-lg tracking-wide capitalize">
+                    {activePanel === "indicators"
+                      ? selectedIndicators.length === 2
+                        ? `${selectedIndicators[0].replaceAll(
+                            "_",
+                            " "
+                          )} vs ${selectedIndicators[1].replaceAll("_", " ")}`
+                        : selectedIndicators.length === 1
+                        ? selectedIndicators[0].replaceAll("_", " ")
+                        : "Select an indicator"
+                      : indicator?.replaceAll("_", " ") || "Indicator"}
                   </h2>
+
                   {loading ? (
                     <div className="flex items-center justify-center h-full font-medium text-slate-500">
                       Loading data...
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        key={`${country}-${indicator}`} // 👈 mantém o gráfico montado
-                        data={mergedData}
-                        margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
-                      >
-                        <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                        <XAxis
-                          dataKey="year"
-                          type="number" // 👈 numérico, não categoria
-                          domain={
-                            allYearsNum.length
-                              ? [
-                                  allYearsNum[0],
-                                  allYearsNum[allYearsNum.length - 1],
-                                ]
-                              : [0, 0]
-                          }
-                          ticks={allYearsNum} // 👈 força todos os anos
-                          allowDataOverflow
-                          tick={{
-                            fontWeight: 600,
-                            fontSize: 12,
-                            fill: "#334155",
-                          }}
-                          height={28}
-                          axisLine={false}
-                          tickFormatter={(v) => String(v)}
-                        />
-                        <YAxis
-                          tick={{
-                            fontWeight: 600,
-                            fontSize: 12,
-                            fill: "#334155",
-                          }}
-                          axisLine={false}
-                        />
-                        <RechartsTooltip
-                          contentStyle={{
-                            backgroundColor: "#fff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
-                            fontSize: "13px",
-                          }}
-                          labelFormatter={(v) => `Year: ${v}`}
-                        />
+                    <>
+                      {/* ===================== COUNTRIES GRAPH ===================== */}
+                      {(activePanel === "countries" ||
+                        activePanel === "default") && (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            key={`${country}-${indicator}-countries`}
+                            data={mergedData}
+                            margin={{
+                              top: 20,
+                              right: 20,
+                              left: 10,
+                              bottom: 20,
+                            }}
+                          >
+                            <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                            <XAxis
+                              dataKey="year"
+                              type="number"
+                              domain={countryDomain}
+                              ticks={countryYears}
+                              allowDecimals={false}
+                              tick={{
+                                fontWeight: 600,
+                                fontSize: 12,
+                                fill: "#334155",
+                              }}
+                              axisLine={false}
+                              tickFormatter={(v) => String(v)}
+                            />
 
-                        {/* linha do país principal */}
-                        {/* linha do país principal */}
-                        <Line
-                          key={`${backendName}-${indicator}`}
-                          dataKey={backendName} // 👈 usa o nome do backend como chave real
-                          type="monotone"
-                          stroke={COLOR_PALETTE[0]}
-                          strokeWidth={2.3}
-                          dot={false}
-                          connectNulls={false}
-                          name={commonName} // 👈 exibe o nome amigável ("Russia")
-                          isAnimationActive={true}
-                          animationBegin={0}
-                          animationDuration={900}
-                          animationEasing="ease-in-out"
-                        />
-
-                        {/* linhas dos países comparados — só aparecem se showComparisons estiver ativo */}
-                        {showComparisons &&
-                          (() => {
-                            let colorIndex = 1;
-                            return compareCountries.map((name) => {
-                              const series = extractSeries(compareData[name]);
-                              const hasData = series.length > 0;
-                              if (!hasData) return null;
-
-                              const color =
-                                COLOR_PALETTE[
-                                  colorIndex++ % COLOR_PALETTE.length
+                            <YAxis
+                              tick={{
+                                fontWeight: 600,
+                                fontSize: 12,
+                                fill: "#334155",
+                              }}
+                              axisLine={false}
+                              tickFormatter={(v) =>
+                                indicator === "population"
+                                  ? `${(v / 1_000_000).toFixed(1)}M`
+                                  : `${v}`
+                              }
+                            />
+                            <RechartsTooltip
+                              contentStyle={{
+                                backgroundColor: "#fff",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "8px",
+                                fontSize: "13px",
+                              }}
+                              labelFormatter={(v) => `Year: ${v}`}
+                              formatter={(v) => {
+                                if (indicator === "population") {
+                                  const millions = (
+                                    Number(v) / 1_000_000
+                                  ).toFixed(1);
+                                  return [`${millions} million`, "Population"];
+                                }
+                                return [
+                                  `${(Number(v) || 0).toFixed(2)}%`,
+                                  indicator,
                                 ];
+                              }}
+                            />
+
+                            {/* Linha do país principal */}
+                            {mergedData && mergedData.length > 0 && (
+                              <Line
+                                key={`${backendName}-${indicator}`}
+                                dataKey={backendName}
+                                type="monotone"
+                                stroke={COLOR_PALETTE[0]}
+                                strokeWidth={2.3}
+                                dot={false}
+                                connectNulls
+                                name={commonName}
+                              />
+                            )}
+
+                            {/* Linhas dos países comparados */}
+                            {compareCountries.map((name, idx) => {
+                              const hasData =
+                                Array.isArray(
+                                  compareSeriesRaw.find((s) => s.name === name)
+                                    ?.data
+                                ) &&
+                                compareSeriesRaw.find((s) => s.name === name)
+                                  ?.data.length > 0;
+
+                              if (!hasData) return null;
 
                               return (
                                 <Line
-                                  key={`${name}-${indicator}-${
-                                    compareData[name]
-                                      ? Object.keys(compareData[name]).length
-                                      : 0
-                                  }`}
+                                  key={`${name}-${indicator}`}
                                   dataKey={name}
                                   type="monotone"
-                                  stroke={color}
+                                  stroke={
+                                    COLOR_PALETTE[
+                                      (idx + 1) % COLOR_PALETTE.length
+                                    ]
+                                  }
                                   strokeWidth={2.3}
                                   dot={false}
-                                  connectNulls={false}
+                                  connectNulls
                                   name={name}
-                                  isAnimationActive={name === latestCountry}
-                                  animationBegin={0}
-                                  animationDuration={900}
-                                  animationEasing="ease-in-out"
                                 />
                               );
-                            });
-                          })()}
-                      </LineChart>
-                    </ResponsiveContainer>
+                            })}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      )}
+
+                      {/* ===================== INDICATORS GRAPH ===================== */}
+                      {activePanel === "indicators" && (
+                        <ResponsiveContainer width="100%" height="100%">
+                          {selectedIndicators.length === 0 ? (
+                            // 🟡 nenhum selecionado
+                            <div className="flex items-center justify-center h-full font-medium text-slate-500"></div>
+                          ) : selectedIndicators.length === 1 ? (
+                            // 🟢 apenas 1 → renderiza o mesmo gráfico local
+                            <LineChart
+                              key={`${country}-${selectedIndicators[0]}-single`}
+                              data={mergedData}
+                              margin={{
+                                top: 50,
+                                right: 20,
+                                left: 10,
+                                bottom: 20,
+                              }}
+                            >
+                              <CartesianGrid
+                                stroke="#e2e8f0"
+                                vertical={false}
+                              />
+                              <XAxis
+                                dataKey="year"
+                                type="number"
+                                domain={countryDomain}
+                                ticks={countryYears}
+                                allowDecimals={false}
+                                tick={{
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  fill: "#334155",
+                                }}
+                                axisLine={false}
+                                tickFormatter={(v) => String(v)}
+                              />
+                              <YAxis
+                                tick={{
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  fill: "#334155",
+                                }}
+                                axisLine={false}
+                                tickFormatter={(v) =>
+                                  indicator === "population"
+                                    ? `${(v / 1_000_000).toFixed(1)}M`
+                                    : `${v}`
+                                }
+                              />
+                              <RechartsTooltip
+                                contentStyle={{
+                                  backgroundColor: "#fff",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: "8px",
+                                  fontSize: "13px",
+                                }}
+                                labelFormatter={(v) => `Year: ${v}`}
+                                formatter={(v) => {
+                                  const key = selectedIndicators[0];
+                                  if (key === "population") {
+                                    const millions = (
+                                      Number(v) / 1_000_000
+                                    ).toFixed(1);
+                                    return [
+                                      `${millions} million`,
+                                      "Population",
+                                    ];
+                                  }
+                                  return [
+                                    `${(Number(v) || 0).toFixed(2)}%`,
+                                    key,
+                                  ];
+                                }}
+                              />
+
+                              <Line
+                                dataKey={backendName}
+                                type="monotone"
+                                stroke={COLOR_PALETTE[0]}
+                                strokeWidth={2.3}
+                                dot={false}
+                                connectNulls
+                                name={getDisplayName(country)}
+                              />
+                            </LineChart>
+                          ) : (
+                            // 🔵 dois indicadores → gráfico comparativo via backend
+                            <LineChart
+                              key={`${country}-indicators`}
+                              data={multiIndicatorChartData}
+                              margin={{
+                                top: 50,
+                                right: 20,
+                                left: 10,
+                                bottom: 20,
+                              }}
+                            >
+                              <CartesianGrid
+                                stroke="#e2e8f0"
+                                vertical={false}
+                              />
+                              <XAxis
+                                dataKey="year"
+                                type="number"
+                                domain={indDomain}
+                                ticks={indYears}
+                                allowDecimals={false}
+                                tick={{
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  fill: "#334155",
+                                }}
+                                axisLine={false}
+                                tickFormatter={(v) => String(v)}
+                              />
+                              <YAxis
+                                tick={{
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  fill: "#334155",
+                                }}
+                                axisLine={false}
+                                tickFormatter={(v) =>
+                                  indicator === "population"
+                                    ? `${(v / 1_000_000).toFixed(1)}M`
+                                    : `${v}`
+                                }
+                              />
+                              <RechartsTooltip
+                                contentStyle={{
+                                  backgroundColor: "#fff",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: "8px",
+                                  fontSize: "13px",
+                                }}
+                                labelFormatter={(v) => `Year: ${v}`}
+                                formatter={(value, name) => {
+                                  if (name === "population") {
+                                    const millions = (
+                                      Number(value) / 1_000_000
+                                    ).toFixed(1);
+                                    return [
+                                      `${millions} million`,
+                                      name.replaceAll("_", " "),
+                                    ];
+                                  }
+                                  return [
+                                    `${(Number(value) || 0).toFixed(2)}%`,
+                                    name.replaceAll("_", " "),
+                                  ];
+                                }}
+                              />
+                              {indicatorData?.details &&
+                                Object.keys(indicatorData.details || {}).map(
+                                  (ind, idx) => (
+                                    <Line
+                                      key={ind}
+                                      dataKey={ind}
+                                      type="monotone"
+                                      stroke={
+                                        COLOR_PALETTE[
+                                          idx % COLOR_PALETTE.length
+                                        ]
+                                      }
+                                      strokeWidth={2.3}
+                                      dot={false}
+                                      connectNulls
+                                      name={ind.replaceAll("_", " ")}
+                                    />
+                                  )
+                                )}
+                            </LineChart>
+                          )}
+                        </ResponsiveContainer>
+                      )}
+                    </>
                   )}
                 </div>
               </main>
