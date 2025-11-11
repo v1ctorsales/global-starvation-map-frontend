@@ -34,10 +34,12 @@ const getColor = (value) => {
 };
 
 const indicatorLabels = {
-  undernourishment: "Undernourishment",
-  poverty: "Poverty Rate",
-  population: "Population",
-  food_calories: "Food Calories",
+  undernourishment: "Undernourishment (2024)",
+  poverty: "Poverty Rate (Latest)",
+  population: "Population (2024)",
+  food_calories: "Food Calories (2022)",
+  energy_suply_adeq: "Energy Supply Adeq (2023)",
+  consumer_price_index: "Consumer Price Index (2025)",
 };
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";

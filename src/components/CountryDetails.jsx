@@ -755,6 +755,13 @@ export default function CountryDetails({ country, indicator, onClose }) {
                       transition={{ duration: 0.35, ease: "easeInOut" }}
                       className="flex flex-col items-center gap-4 text-slate-700 h-[340px] w-[340px]"
                     >
+                      <div className="w-[90%] mb-2">
+                        <CountryPill
+                          name={getDisplayName(country)}
+                          color={[]}
+                          hasData={true}
+                        />
+                      </div>
                       <h3 className="text-base font-semibold text-slate-800 mb-1">
                         Select up to 2 indicators
                       </h3>
