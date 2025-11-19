@@ -230,6 +230,86 @@ export default function CountryDetails({ country, indicator, onClose }) {
     });
   }, [allYearsNum, mainSeriesRaw, compareSeriesRaw, country]);
 
+  const normalizedMergedData = useMemo(() => {
+    if (indicator !== "population") return mergedData;
+
+    // converte todos os valores populacionais para milhões
+    return mergedData.map((row) => {
+      const newRow = { ...row };
+      Object.keys(newRow).forEach((key) => {
+        if (key !== "year" && newRow[key] != null) {
+          newRow[key] = newRow[key] / 1_000_000;
+        }
+      });
+      return newRow;
+    });
+  }, [mergedData, indicator]);
+
+  // 🔹 Combina as duas séries em um único array para o Recharts
+  // Combina 1 ou 2 indicadores para o gráfico (sem normalizar)
+  // util interna: parse de ano -> número (pega os 4 dígitos)
+  const parseYear = (y) => {
+    const m = String(y ?? "").match(/\d{4}/);
+    const n = m ? Number(m[0]) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // Combina 1 ou 2 indicadores para o gráfico (sem normalizar), garantindo ano numérico
+  const multiIndicatorChartData = useMemo(() => {
+    const details = indicatorData?.details;
+    if (!details) return [];
+
+    const keys = Object.keys(details || {});
+    if (keys.length === 0) return [];
+
+    // Map por indicador: { year(number) -> value(number) }
+    const maps = {};
+    keys.forEach((k) => {
+      const rows = Array.isArray(details[k]) ? details[k] : [];
+      maps[k] = new Map(
+        rows
+          .map((d) => {
+            const y = parseYear(d.year);
+            const v = Number(d.value);
+            return [y, Number.isFinite(v) ? v : null];
+          })
+          .filter(([y, v]) => y !== null && v !== null)
+      );
+    });
+
+    // Coleção de todos os anos válidos
+    const yearsSet = new Set();
+    keys.forEach((k) => {
+      for (const y of maps[k].keys()) yearsSet.add(y);
+    });
+    const years = Array.from(yearsSet).sort((a, b) => a - b);
+
+    // Linha por ano
+    return years.map((year) => {
+      const row = { year };
+      keys.forEach((k) => {
+        row[k] = maps[k].get(year) ?? null;
+      });
+      return row;
+    });
+  }, [indicatorData]);
+
+  const normalizedIndicatorChartData = useMemo(() => {
+    if (!multiIndicatorChartData) return [];
+    if (!selectedIndicators.includes("population"))
+      return multiIndicatorChartData;
+
+    return multiIndicatorChartData.map((row) => {
+      const newRow = { ...row };
+      selectedIndicators.forEach((ind) => {
+        if (ind === "population" && newRow[ind] != null) {
+          newRow[ind] = newRow[ind] / 1_000_000;
+        }
+      });
+      return newRow;
+    });
+  }, [multiIndicatorChartData, selectedIndicators]);
+
   const mainSeries = useMemo(() => extractSeries(rows[0]), [rows, indicator]);
 
   const compareSeries = useMemo(() => {
@@ -315,55 +395,6 @@ export default function CountryDetails({ country, indicator, onClose }) {
     }
   }, [activePanel]);
 
-  // 🔹 Combina as duas séries em um único array para o Recharts
-  // Combina 1 ou 2 indicadores para o gráfico (sem normalizar)
-  // util interna: parse de ano -> número (pega os 4 dígitos)
-  const parseYear = (y) => {
-    const m = String(y ?? "").match(/\d{4}/);
-    const n = m ? Number(m[0]) : NaN;
-    return Number.isFinite(n) ? n : null;
-  };
-
-  // Combina 1 ou 2 indicadores para o gráfico (sem normalizar), garantindo ano numérico
-  const multiIndicatorChartData = useMemo(() => {
-    const details = indicatorData?.details;
-    if (!details) return [];
-
-    const keys = Object.keys(details || {});
-    if (keys.length === 0) return [];
-
-    // Map por indicador: { year(number) -> value(number) }
-    const maps = {};
-    keys.forEach((k) => {
-      const rows = Array.isArray(details[k]) ? details[k] : [];
-      maps[k] = new Map(
-        rows
-          .map((d) => {
-            const y = parseYear(d.year);
-            const v = Number(d.value);
-            return [y, Number.isFinite(v) ? v : null];
-          })
-          .filter(([y, v]) => y !== null && v !== null)
-      );
-    });
-
-    // Coleção de todos os anos válidos
-    const yearsSet = new Set();
-    keys.forEach((k) => {
-      for (const y of maps[k].keys()) yearsSet.add(y);
-    });
-    const years = Array.from(yearsSet).sort((a, b) => a - b);
-
-    // Linha por ano
-    return years.map((year) => {
-      const row = { year };
-      keys.forEach((k) => {
-        row[k] = maps[k].get(year) ?? null;
-      });
-      return row;
-    });
-  }, [indicatorData]);
-
   // ============================
   // 🧭 Domínios e ticks por contexto
   // ============================
@@ -381,6 +412,11 @@ export default function CountryDetails({ country, indicator, onClose }) {
     indYears.length > 0
       ? [Math.min(...indYears), Math.max(...indYears)]
       : [0, 0];
+
+  const formatPopulationTick = (v) => {
+    if (v == null) return "";
+    return v.toFixed(1).replace(".0", "") + "M";
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -904,7 +940,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart
                             key={`${country}-${indicator}-countries`}
-                            data={mergedData}
+                            data={normalizedMergedData}
                             margin={{
                               top: 20,
                               right: 20,
@@ -937,8 +973,8 @@ export default function CountryDetails({ country, indicator, onClose }) {
                               axisLine={false}
                               tickFormatter={(v) =>
                                 indicator === "population"
-                                  ? `${(v / 1_000_000).toFixed(1)}M`
-                                  : `${v}`
+                                  ? formatPopulationTick(v)
+                                  : v
                               }
                             />
                             <RechartsTooltip
@@ -951,10 +987,10 @@ export default function CountryDetails({ country, indicator, onClose }) {
                               labelFormatter={(v) => `Year: ${v}`}
                               formatter={(v) => {
                                 if (indicator === "population") {
-                                  const millions = (
-                                    Number(v) / 1_000_000
-                                  ).toFixed(1);
-                                  return [`${millions} million`, "Population"];
+                                  return [
+                                    `${v.toFixed(1)} million`,
+                                    "Population",
+                                  ];
                                 }
                                 return [
                                   `${(Number(v) || 0).toFixed(2)}%`,
@@ -1020,7 +1056,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             // 🟢 apenas 1 → renderiza o mesmo gráfico local
                             <LineChart
                               key={`${country}-${selectedIndicators[0]}-single`}
-                              data={mergedData}
+                              data={normalizedMergedData}
                               margin={{
                                 top: 50,
                                 right: 20,
@@ -1054,9 +1090,9 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                 }}
                                 axisLine={false}
                                 tickFormatter={(v) =>
-                                  indicator === "population"
-                                    ? `${(v / 1_000_000).toFixed(1)}M`
-                                    : `${v}`
+                                  selectedIndicators.includes("population")
+                                    ? formatPopulationTick(v)
+                                    : v
                                 }
                               />
                               <RechartsTooltip
@@ -1070,11 +1106,8 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                 formatter={(v) => {
                                   const key = selectedIndicators[0];
                                   if (key === "population") {
-                                    const millions = (
-                                      Number(v) / 1_000_000
-                                    ).toFixed(1);
                                     return [
-                                      `${millions} million`,
+                                      `${v.toFixed(1)} million`,
                                       "Population",
                                     ];
                                   }
@@ -1099,7 +1132,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             // 🔵 dois indicadores → gráfico comparativo via backend
                             <LineChart
                               key={`${country}-indicators`}
-                              data={multiIndicatorChartData}
+                              data={normalizedIndicatorChartData}
                               margin={{
                                 top: 50,
                                 right: 20,
@@ -1133,9 +1166,9 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                 }}
                                 axisLine={false}
                                 tickFormatter={(v) =>
-                                  indicator === "population"
-                                    ? `${(v / 1_000_000).toFixed(1)}M`
-                                    : `${v}`
+                                  selectedIndicators.includes("population")
+                                    ? formatPopulationTick(v)
+                                    : v
                                 }
                               />
                               <RechartsTooltip
@@ -1148,11 +1181,8 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                 labelFormatter={(v) => `Year: ${v}`}
                                 formatter={(value, name) => {
                                   if (name === "population") {
-                                    const millions = (
-                                      Number(value) / 1_000_000
-                                    ).toFixed(1);
                                     return [
-                                      `${millions} million`,
+                                      `${value.toFixed(1)} million`,
                                       name.replaceAll("_", " "),
                                     ];
                                   }

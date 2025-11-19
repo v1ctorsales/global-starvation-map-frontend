@@ -35,12 +35,14 @@ const getColor = (value) => {
 };
 
 const indicatorLabels = {
-  undernourishment: "Undernourishment (2024)",
+  mean_inflation: "Mean Inflation (2024)",
+  max_inflation: "Max Inflation (2024)",
   poverty: "Poverty Rate (Latest)",
+  undernourishment: "Undernourishment (2022)",
   population: "Population (2024)",
+  energy_suply_adeq: "Energy Supply Adequacy (2023)",
   food_calories: "Food Calories (2022)",
-  energy_suply_adeq: "Energy Supply Adeq (2023)",
-  consumer_price_index: "Consumer Price Index (2025)",
+  gdp: "GDP (2024)",
 };
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
