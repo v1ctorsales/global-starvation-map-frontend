@@ -270,7 +270,13 @@ export default function CountryDetails({ country, indicator, onClose }) {
         rows
           .map((d) => {
             const y = parseYear(d.year);
-            const v = Number(d.value);
+            const raw = d.value;
+
+            // se for null, undefined, vazio → retorna null
+            if (raw == null) return [y, null];
+
+            // só converte se vier número de verdade
+            const v = Number(raw);
             return [y, Number.isFinite(v) ? v : null];
           })
           .filter(([y, v]) => y !== null && v !== null)
@@ -284,14 +290,21 @@ export default function CountryDetails({ country, indicator, onClose }) {
     });
     const years = Array.from(yearsSet).sort((a, b) => a - b);
 
-    // Linha por ano
-    return years.map((year) => {
+    const rows = years.map((year) => {
       const row = { year };
+      let allNull = true;
+
       keys.forEach((k) => {
-        row[k] = maps[k].get(year) ?? null;
+        const value = maps[k].get(year) ?? null;
+        row[k] = value;
+        if (value !== null) allNull = false;
       });
-      return row;
+
+      return allNull ? null : row;
     });
+
+    // remove os anos totalmente vazios
+    return rows.filter((r) => r !== null);
   }, [indicatorData]);
 
   const normalizedIndicatorChartData = useMemo(() => {
@@ -800,10 +813,17 @@ export default function CountryDetails({ country, indicator, onClose }) {
                       <div className="w-[90%] mb-2">
                         <CountryPill
                           name={getDisplayName(country)}
-                          color={[]}
+                          color={
+                            selectedIndicators.length === 0
+                              ? null
+                              : selectedIndicators.length === 1
+                              ? "#2563eb"
+                              : "#f97316"
+                          }
                           hasData={true}
                         />
                       </div>
+
                       <h3 className="text-base font-semibold text-slate-800 mb-1">
                         Select up to 2 indicators
                       </h3>
@@ -813,32 +833,34 @@ export default function CountryDetails({ country, indicator, onClose }) {
                           {
                             key: "undernourishment",
                             label: "Undernourishment",
-                            color: "#2563eb",
                           },
                           {
                             key: "population",
                             label: "Population",
-                            color: "#f97316",
                           },
                           {
                             key: "poverty",
                             label: "Poverty Rate",
-                            color: "#40da78ff",
                           },
                           {
-                            key: "consumer_price_index",
-                            label: "Consumer Price Index",
-                            color: "#9333ea",
+                            key: "max_inflation",
+                            label: "Maximum Inflation",
+                          },
+                          {
+                            key: "min_inflation",
+                            label: "Minimum Inflation",
                           },
                           {
                             key: "food_calories",
-                            label: "Food Calories",
-                            color: "#dc2626",
+                            label: "Food Calories Available",
                           },
                           {
                             key: "average_dietary_energy_supply_adequacy",
                             label: "Dietary Energy Supply Adequacy",
-                            color: "#0b2545",
+                          },
+                          {
+                            key: "gdp",
+                            label: "Gross Domestic Product (GDP)",
                           },
                         ].map((item) => {
                           const isSelected = selectedIndicators.includes(
@@ -898,10 +920,17 @@ export default function CountryDetails({ country, indicator, onClose }) {
                               </div>
 
                               {/* Direita: cor do gráfico */}
-                              <span
-                                className="w-4 h-4 rounded-full border border-slate-200 shadow-sm"
-                                style={{ backgroundColor: item.color }}
-                              />
+                              {isSelected && (
+                                <span
+                                  className="w-4 h-4 rounded-full border border-slate-200 shadow-sm"
+                                  style={{
+                                    backgroundColor:
+                                      selectedIndicators.indexOf(item.key) === 0
+                                        ? "#2563eb" // primeiro selecionado
+                                        : "#f97316", // segundo selecionado
+                                  }}
+                                />
+                              )}
                             </motion.button>
                           );
                         })}
@@ -913,7 +942,17 @@ export default function CountryDetails({ country, indicator, onClose }) {
 
               {/* Painel direito */}
               <main className="p-8 flex flex-col min-w-0">
-                <div className="rounded-2xl flex-1 bg-white border border-slate-200 p-5 relative min-h-[420px] shadow-sm">
+                <div className="rounded-2xl flex-1 bg-white border border-slate-200 relative min-h-[420px] shadow-sm">
+                  {activePanel === "default" && (
+                    <button
+                      className="absolute -top-4 -left-4 z-[5] flex items-center justify-center
+w-10 h-10 rounded-full bg-white text-slate-600 hover:text-slate-900
+border border-slate-200 shadow-sm transition-transform hover:scale-105"
+                    >
+                      📈
+                    </button>
+                  )}
+
                   {/* título dinâmico */}
                   <h2 className="absolute top-0 left-1/2 -translate-x-1/2 text-slate-700 font-semibold text-lg tracking-wide capitalize">
                     {activePanel === "indicators"
@@ -942,7 +981,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             key={`${country}-${indicator}-countries`}
                             data={normalizedMergedData}
                             margin={{
-                              top: 20,
+                              top: 50,
                               right: 20,
                               left: 10,
                               bottom: 20,
@@ -1273,12 +1312,12 @@ function CountryPill({
       </div>
 
       <div className="flex items-center gap-2">
-        {hasData ? (
+        {hasData && color ? (
           <span
             className="w-3.5 h-3.5 rounded-full"
             style={{ backgroundColor: color }}
           />
-        ) : (
+        ) : hasData ? null : (
           <span className="text-xs text-slate-400 font-medium">(No data)</span>
         )}
         {closable && (
