@@ -9,6 +9,9 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
+  ScatterChart,
+  Scatter,
+  ReferenceLine,
 } from "recharts";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import ReactCountryFlag from "react-country-flag";
@@ -54,11 +57,39 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredCountries, setFilteredCountries] = useState([]);
+  const [chartMode, setChartMode] = useState("line");
+  const [globalIndicatorData, setGlobalIndicatorData] = useState([]);
 
   const MAX_COMPARE = 7;
 
   // país recém-adicionado (último da lista)
   const latestCountry = compareCountries[compareCountries.length - 1];
+
+  const ScatterTooltipContent = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+
+    const p = payload[0].payload;
+
+    return (
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: "8px",
+          padding: "8px 12px",
+          fontSize: "13px",
+          color: "#334155",
+        }}
+      >
+        <div>
+          <strong>Country:</strong> {getDisplayName(p["Country Name"])}
+        </div>
+        <div>
+          <strong>Value:</strong> {p.Value}
+        </div>
+      </div>
+    );
+  };
 
   const [activePanel, setActivePanel] = useState("default");
   // ============================
@@ -116,6 +147,16 @@ export default function CountryDetails({ country, indicator, onClose }) {
       .catch((err) => console.error("Error fetching main country:", err))
       .finally(() => setLoading(false));
   }, [country, indicator]);
+
+  // ============================
+  // 📊 FETCH GLOBAL DATA (para scatter)
+  // ============================
+  useEffect(() => {
+    axios
+      .get(`${API}/latest?indicator=${indicator}`)
+      .then((res) => setGlobalIndicatorData(res.data))
+      .catch((err) => console.error("Error fetching global indicator:", err));
+  }, [indicator]);
 
   // ============================
   // 📊 FETCH COMPARAÇÕES
@@ -847,15 +888,15 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             label: "Maximum Inflation",
                           },
                           {
-                            key: "min_inflation",
-                            label: "Minimum Inflation",
+                            key: "mean_inflation",
+                            label: "Mean Inflation",
                           },
                           {
                             key: "food_calories",
                             label: "Food Calories Available",
                           },
                           {
-                            key: "average_dietary_energy_supply_adequacy",
+                            key: "energy_suply_adeq",
                             label: "Dietary Energy Supply Adequacy",
                           },
                           {
@@ -946,10 +987,20 @@ export default function CountryDetails({ country, indicator, onClose }) {
                   {activePanel === "default" && (
                     <button
                       className="absolute -top-4 -left-4 z-[5] flex items-center justify-center
-w-10 h-10 rounded-full bg-white text-slate-600 hover:text-slate-900
-border border-slate-200 shadow-sm transition-transform hover:scale-105"
+             w-10 h-10 rounded-full bg-white text-slate-600 hover:text-slate-900
+             border border-slate-200 shadow-sm transition-transform hover:scale-105"
+                      onClick={() => {
+                        setChartMode((prev) =>
+                          prev === "line" ? "scatter" : "line"
+                        );
+                      }}
+                      title={
+                        chartMode === "line"
+                          ? "Show scatter plot"
+                          : "Show line chart"
+                      }
                     >
-                      📈
+                      {chartMode === "line" ? "📈" : "📊"}
                     </button>
                   )}
 
@@ -977,111 +1028,184 @@ border border-slate-200 shadow-sm transition-transform hover:scale-105"
                       {(activePanel === "countries" ||
                         activePanel === "default") && (
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            key={`${country}-${indicator}-countries`}
-                            data={normalizedMergedData}
-                            margin={{
-                              top: 50,
-                              right: 20,
-                              left: 10,
-                              bottom: 20,
-                            }}
-                          >
-                            <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                            <XAxis
-                              dataKey="year"
-                              type="number"
-                              domain={countryDomain}
-                              ticks={countryYears}
-                              allowDecimals={false}
-                              tick={{
-                                fontWeight: 600,
-                                fontSize: 12,
-                                fill: "#334155",
+                          {chartMode === "line" ? (
+                            /* ===================== GRÁFICO DE LINHA ORIGINAL ===================== */
+                            <LineChart
+                              key={`${country}-${indicator}-countries`}
+                              data={normalizedMergedData}
+                              margin={{
+                                top: 50,
+                                right: 20,
+                                left: 10,
+                                bottom: 20,
                               }}
-                              axisLine={false}
-                              tickFormatter={(v) => String(v)}
-                            />
-
-                            <YAxis
-                              tick={{
-                                fontWeight: 600,
-                                fontSize: 12,
-                                fill: "#334155",
-                              }}
-                              axisLine={false}
-                              tickFormatter={(v) =>
-                                indicator === "population"
-                                  ? formatPopulationTick(v)
-                                  : v
-                              }
-                            />
-                            <RechartsTooltip
-                              contentStyle={{
-                                backgroundColor: "#fff",
-                                border: "1px solid #e2e8f0",
-                                borderRadius: "8px",
-                                fontSize: "13px",
-                              }}
-                              labelFormatter={(v) => `Year: ${v}`}
-                              formatter={(v) => {
-                                if (indicator === "population") {
-                                  return [
-                                    `${v.toFixed(1)} million`,
-                                    "Population",
-                                  ];
-                                }
-                                return [
-                                  `${(Number(v) || 0).toFixed(2)}%`,
-                                  indicator,
-                                ];
-                              }}
-                            />
-
-                            {/* Linha do país principal */}
-                            {mergedData && mergedData.length > 0 && (
-                              <Line
-                                key={`${backendName}-${indicator}`}
-                                dataKey={backendName}
-                                type="monotone"
-                                stroke={COLOR_PALETTE[0]}
-                                strokeWidth={2.3}
-                                dot={false}
-                                connectNulls
-                                name={commonName}
+                            >
+                              <CartesianGrid
+                                stroke="#e2e8f0"
+                                vertical={false}
                               />
-                            )}
 
-                            {/* Linhas dos países comparados */}
-                            {compareCountries.map((name, idx) => {
-                              const hasData =
-                                Array.isArray(
-                                  compareSeriesRaw.find((s) => s.name === name)
-                                    ?.data
-                                ) &&
-                                compareSeriesRaw.find((s) => s.name === name)
-                                  ?.data.length > 0;
+                              <XAxis
+                                dataKey="year"
+                                type="number"
+                                domain={countryDomain}
+                                ticks={countryYears}
+                                allowDecimals={false}
+                                tick={{
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  fill: "#334155",
+                                }}
+                                axisLine={false}
+                                tickFormatter={(v) => String(v)}
+                              />
 
-                              if (!hasData) return null;
+                              <YAxis
+                                tick={{
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  fill: "#334155",
+                                }}
+                                axisLine={false}
+                                tickFormatter={(v) =>
+                                  indicator === "population"
+                                    ? formatPopulationTick(v)
+                                    : v
+                                }
+                              />
 
-                              return (
-                                <Line
-                                  key={`${name}-${indicator}`}
-                                  dataKey={name}
-                                  type="monotone"
-                                  stroke={
-                                    COLOR_PALETTE[
-                                      (idx + 1) % COLOR_PALETTE.length
-                                    ]
+                              <RechartsTooltip
+                                contentStyle={{
+                                  backgroundColor: "#fff",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: "8px",
+                                  fontSize: "13px",
+                                }}
+                                labelFormatter={(v) => `Year: ${v}`}
+                                formatter={(v) => {
+                                  if (indicator === "population") {
+                                    return [
+                                      `${v.toFixed(1)} million`,
+                                      "Population",
+                                    ];
                                   }
+                                  return [
+                                    `${(Number(v) || 0).toFixed(2)}%`,
+                                    indicator,
+                                  ];
+                                }}
+                              />
+
+                              {/* Linha do país principal */}
+                              {mergedData && mergedData.length > 0 && (
+                                <Line
+                                  key={`${backendName}-${indicator}`}
+                                  dataKey={backendName}
+                                  type="monotone"
+                                  stroke={COLOR_PALETTE[0]}
                                   strokeWidth={2.3}
                                   dot={false}
                                   connectNulls
-                                  name={name}
+                                  name={commonName}
                                 />
-                              );
-                            })}
-                          </LineChart>
+                              )}
+
+                              {/* Linhas dos países comparados */}
+                              {compareCountries.map((name, idx) => {
+                                const series = compareSeriesRaw.find(
+                                  (s) => s.name === name
+                                );
+                                const hasData =
+                                  Array.isArray(series?.data) &&
+                                  series.data.length > 0;
+                                if (!hasData) return null;
+
+                                return (
+                                  <Line
+                                    key={`${name}-${indicator}`}
+                                    dataKey={name}
+                                    type="monotone"
+                                    stroke={
+                                      COLOR_PALETTE[
+                                        (idx + 1) % COLOR_PALETTE.length
+                                      ]
+                                    }
+                                    strokeWidth={2.3}
+                                    dot={false}
+                                    connectNulls
+                                    name={name}
+                                  />
+                                );
+                              })}
+                            </LineChart>
+                          ) : (
+                            /* ===================== SCATTER CHART ===================== */
+                            <ScatterChart
+                              key="scatter"
+                              margin={{
+                                top: 50,
+                                right: 20,
+                                left: 10,
+                                bottom: 20,
+                              }}
+                            >
+                              <CartesianGrid stroke="#e2e8f0" />
+
+                              {/* Eixo X oculto (categorias por país) */}
+                              <XAxis
+                                dataKey="Country Name"
+                                type="category"
+                                hide
+                              />
+
+                              {/* Eixo Y (valor do indicador) */}
+                              <YAxis
+                                dataKey="Value"
+                                type="number"
+                                tick={{ fontSize: 12, fill: "#334155" }}
+                              />
+
+                              {/* Linha da média global */}
+                              <ReferenceLine
+                                y={
+                                  globalIndicatorData.reduce(
+                                    (sum, c) => sum + (c.Value || 0),
+                                    0
+                                  ) /
+                                  globalIndicatorData.filter(
+                                    (c) => c.Value != null
+                                  ).length
+                                }
+                                stroke="#f97316"
+                                strokeDasharray="4 4"
+                                label="Global Avg"
+                              />
+
+                              {/* Pontos de todos os países */}
+                              <Scatter
+                                name="Countries"
+                                data={globalIndicatorData}
+                                fill="#94a3b8"
+                                opacity={0.7}
+                              />
+
+                              {/* Ponto destacado do país atual */}
+                              <Scatter
+                                name="Selected"
+                                data={globalIndicatorData.filter(
+                                  (d) =>
+                                    normalizeCountryName(d["Country Name"]) ===
+                                    backendName
+                                )}
+                                fill="#2563eb"
+                                r={8}
+                              />
+
+                              <RechartsTooltip
+                                content={<ScatterTooltipContent />}
+                              />
+                            </ScatterChart>
+                          )}
                         </ResponsiveContainer>
                       )}
 
