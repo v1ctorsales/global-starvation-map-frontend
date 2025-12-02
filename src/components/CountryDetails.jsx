@@ -60,6 +60,17 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const [chartMode, setChartMode] = useState("line");
   const [globalIndicatorData, setGlobalIndicatorData] = useState([]);
 
+  const INDICATOR_MAP = {
+    gdp: "gdp_percapita",
+    energy_suply_adeq: "energy_supply_adeq",
+    mean_inflation: "mean_inflation_rate", // 👈 chave curta -> prefixo
+    max_inflation: "max_inflation_shock", // 👈 chave curta -> prefixo
+    food_calories: "food_calories",
+    poverty: "poverty",
+    population: "population",
+    undernourishment: "undernourishment",
+  };
+
   const MAX_COMPARE = 7;
 
   // país recém-adicionado (último da lista)
@@ -99,6 +110,35 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const [indicatorData, setIndicatorData] = useState(null);
   const [loadingIndicators, setLoadingIndicators] = useState(false);
 
+  const formatCalories = (v) => {
+    if (v == null) return "";
+    return (v / 1000).toFixed(1).replace(".0", "") + "k";
+  };
+
+  const formatGdp = (v) => {
+    if (v == null) return "";
+    return (v / 1000).toFixed(1).replace(".0", "") + "k USD";
+  };
+
+  const formatValue = (indicatorKey, value) => {
+    if (value == null) return "";
+
+    switch (indicatorKey) {
+      case "population":
+        return value.toFixed(1) + "M";
+
+      case "food_calories":
+        return formatCalories(value);
+
+      case "gdp":
+        return formatGdp(value);
+
+      default:
+        // percentuais
+        return (Number(value) || 0).toFixed(2) + "%";
+    }
+  };
+
   // ============================
   // 🔍 FILTRO DINÂMICO DE PAÍSES
   // ============================
@@ -135,9 +175,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
     axios;
     axios
       .get(
-        `${API}/data/all_data_merged?country=${encodeURIComponent(
-          backendName
-        )}&indicator=${encodeURIComponent(indicator)}`
+        `${API}/data/all_data_merged?country=${backendName}&indicator=${INDICATOR_MAP[indicator]}`
       )
 
       .then((res) => {
@@ -182,22 +220,31 @@ export default function CountryDetails({ country, indicator, onClose }) {
   // 📊 FETCH DE INDICADORES MÚLTIPLOS
   // ============================
   useEffect(() => {
-    // só busca se houver 1 ou 2 indicadores selecionados
-    if (!country || selectedIndicators.length === 0) return;
+    // só chama a API quando tiver exatamente DOIS indicadores
+    if (!country || selectedIndicators.length !== 2) return;
 
     const params = new URLSearchParams();
     params.append("country", backendName);
-    selectedIndicators.forEach((ind) => params.append("indicators", ind));
+
+    // aqui mandamos DIRETO os nomes esperados pelo backend
+    selectedIndicators.forEach((ind) => {
+      params.append("indicators", ind);
+    });
 
     setLoadingIndicators(true);
     axios
       .get(`${API}/indicators?${params.toString()}`)
       .then((res) => {
-        setIndicatorData(res.data);
+        if (res.data?.error) {
+          console.error("Indicators API error:", res.data.error);
+          setIndicatorData(null);
+        } else {
+          setIndicatorData(res.data);
+        }
       })
       .catch((err) => console.error("Error fetching indicators:", err))
       .finally(() => setLoadingIndicators(false));
-  }, [country, selectedIndicators]);
+  }, [country, selectedIndicators, backendName]);
 
   // ============================
   // ⚙️ UTILIDADES
@@ -209,7 +256,18 @@ export default function CountryDetails({ country, indicator, onClose }) {
 
   const extractSeries = (dataObj) => {
     if (!dataObj) return [];
-    const regex = new RegExp(`^${indicator}_(\\d{4})$`);
+
+    const backendIndicator = INDICATOR_MAP[indicator] || indicator;
+
+    const regex = new RegExp(`^${backendIndicator}_(\\d{4})$`);
+
+    console.log("DEBUG extractSeries:", {
+      indicatorViewProp: indicator, // o indicador vindo do modal
+      backendIndicator,
+      lookingFor: `${backendIndicator}_YYYY`,
+      sampleKeys: Object.keys(dataObj).slice(0, 15),
+    });
+
     return Object.entries(dataObj)
       .filter(([k, v]) => regex.test(k) && v != null)
       .map(([k, v]) => ({
@@ -218,6 +276,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
       }))
       .sort((a, b) => a.year - b.year);
   };
+
   // séries "cruas"
   const mainSeriesRaw = useMemo(
     () => extractSeries(rows[0]),
@@ -884,11 +943,11 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             label: "Poverty Rate",
                           },
                           {
-                            key: "max_inflation",
+                            key: "max_inflation", // 👈 era max_inflation_shock
                             label: "Maximum Inflation",
                           },
                           {
-                            key: "mean_inflation",
+                            key: "mean_inflation", // 👈 era mean_inflation_rate
                             label: "Mean Inflation",
                           },
                           {
@@ -1067,11 +1126,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fill: "#334155",
                                 }}
                                 axisLine={false}
-                                tickFormatter={(v) =>
-                                  indicator === "population"
-                                    ? formatPopulationTick(v)
-                                    : v
-                                }
+                                tickFormatter={(v) => formatValue(indicator, v)}
                               />
 
                               <RechartsTooltip
@@ -1082,18 +1137,10 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fontSize: "13px",
                                 }}
                                 labelFormatter={(v) => `Year: ${v}`}
-                                formatter={(v) => {
-                                  if (indicator === "population") {
-                                    return [
-                                      `${v.toFixed(1)} million`,
-                                      "Population",
-                                    ];
-                                  }
-                                  return [
-                                    `${(Number(v) || 0).toFixed(2)}%`,
-                                    indicator,
-                                  ];
-                                }}
+                                formatter={(v) => [
+                                  formatValue(indicator, v),
+                                  indicator,
+                                ]}
                               />
 
                               {/* Linha do país principal */}
@@ -1252,11 +1299,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fill: "#334155",
                                 }}
                                 axisLine={false}
-                                tickFormatter={(v) =>
-                                  selectedIndicators.includes("population")
-                                    ? formatPopulationTick(v)
-                                    : v
-                                }
+                                tickFormatter={(v) => formatValue(indicator, v)}
                               />
                               <RechartsTooltip
                                 contentStyle={{
@@ -1266,19 +1309,10 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fontSize: "13px",
                                 }}
                                 labelFormatter={(v) => `Year: ${v}`}
-                                formatter={(v) => {
-                                  const key = selectedIndicators[0];
-                                  if (key === "population") {
-                                    return [
-                                      `${v.toFixed(1)} million`,
-                                      "Population",
-                                    ];
-                                  }
-                                  return [
-                                    `${(Number(v) || 0).toFixed(2)}%`,
-                                    key,
-                                  ];
-                                }}
+                                formatter={(v) => [
+                                  formatValue(indicator, v),
+                                  indicator,
+                                ]}
                               />
 
                               <Line
@@ -1328,11 +1362,12 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fill: "#334155",
                                 }}
                                 axisLine={false}
-                                tickFormatter={(v) =>
-                                  selectedIndicators.includes("population")
-                                    ? formatPopulationTick(v)
-                                    : v
-                                }
+                                tickFormatter={(v) => {
+                                  // O eixo é compartilhado por até 2 indicadores.
+                                  // Escolhemos o formatador do PRIMEIRO indicador.
+                                  const main = selectedIndicators[0];
+                                  return formatValue(main, v);
+                                }}
                               />
                               <RechartsTooltip
                                 contentStyle={{
@@ -1342,18 +1377,10 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fontSize: "13px",
                                 }}
                                 labelFormatter={(v) => `Year: ${v}`}
-                                formatter={(value, name) => {
-                                  if (name === "population") {
-                                    return [
-                                      `${value.toFixed(1)} million`,
-                                      name.replaceAll("_", " "),
-                                    ];
-                                  }
-                                  return [
-                                    `${(Number(value) || 0).toFixed(2)}%`,
-                                    name.replaceAll("_", " "),
-                                  ];
-                                }}
+                                formatter={(value, name) => [
+                                  formatValue(name, value),
+                                  name.replaceAll("_", " "),
+                                ]}
                               />
                               {indicatorData?.details &&
                                 Object.keys(indicatorData.details || {}).map(

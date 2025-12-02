@@ -24,14 +24,114 @@ import {
 
 countries.registerLocale(enLocale);
 
-const getColor = (value) => {
+const LEGENDS = {
+  // ---------------------------
+  // INDICADORES EM PERCENTUAL
+  // ---------------------------
+  undernourishment: [
+    { max: 2.5, label: "≤ 2.5%" },
+    { max: 5, label: "≤ 5%" },
+    { max: 10, label: "≤ 10%" },
+    { max: 20, label: "≤ 20%" },
+    { max: 40, label: "≤ 40%" },
+    { max: Infinity, label: "> 40%" },
+  ],
+  poverty: [
+    { max: 5, label: "≤ 5%" },
+    { max: 10, label: "≤ 10%" },
+    { max: 20, label: "≤ 20%" },
+    { max: 30, label: "≤ 30%" },
+    { max: 50, label: "≤ 50%" },
+    { max: Infinity, label: "> 50%" },
+  ],
+  mean_inflation: [
+    { max: 2, label: "≤ 2%" },
+    { max: 5, label: "≤ 5%" },
+    { max: 10, label: "≤ 10%" },
+    { max: 20, label: "≤ 20%" },
+    { max: 40, label: "≤ 40%" },
+    { max: Infinity, label: "> 40%" },
+  ],
+  max_inflation: [
+    { max: 5, label: "≤ 5%" },
+    { max: 10, label: "≤ 10%" },
+    { max: 20, label: "≤ 20%" },
+    { max: 40, label: "≤ 40%" },
+    { max: 80, label: "≤ 80%" },
+    { max: Infinity, label: "> 80%" },
+  ],
+
+  // ---------------------------
+  // POPULATION — MILHÕES
+  // ---------------------------
+  population: [
+    { max: 1, label: "≤ 1M" },
+    { max: 5, label: "≤ 5M" },
+    { max: 20, label: "≤ 20M" },
+    { max: 50, label: "≤ 50M" },
+    { max: 100, label: "≤ 100M" },
+    { max: Infinity, label: "> 100M" },
+  ],
+
+  // ---------------------------
+  // FOOD CALORIES — mil kcal/dia
+  // ---------------------------
+  food_calories: [
+    { max: 2200, label: "≤ 2200" },
+    { max: 2600, label: "≤ 2600" },
+    { max: 3000, label: "≤ 3000" },
+    { max: 3400, label: "≤ 3400" },
+    { max: 3800, label: "≤ 3800" },
+    { max: Infinity, label: "> 3800" },
+  ],
+
+  // ---------------------------
+  // ENERGY SUPPLY ADEQUACY — %
+  // ---------------------------
+  energy_suply_adeq: [
+    { max: 90, label: "≤ 90%" },
+    { max: 100, label: "≤ 100%" },
+    { max: 120, label: "≤ 120%" },
+    { max: 140, label: "≤ 140%" },
+    { max: 160, label: "≤ 160%" },
+    { max: Infinity, label: "> 160%" },
+  ],
+
+  // ---------------------------
+  // GDP per capita — USD
+  // ---------------------------
+  gdp: [
+    { max: 5000, label: "≤ $5k" },
+    { max: 10000, label: "≤ $10k" },
+    { max: 20000, label: "≤ $20k" },
+    { max: 40000, label: "≤ $40k" },
+    { max: 60000, label: "≤ $60k" },
+    { max: Infinity, label: "> $60k" },
+  ],
+};
+
+const getColor = (indicator, value) => {
   if (value == null || isNaN(value)) return "#ccc";
-  if (value <= 2.5) return "#d4f0f0";
-  if (value <= 5) return "#a6dcef";
-  if (value <= 10) return "#5aa9e6";
-  if (value <= 20) return "#2e7bb4";
-  if (value <= 40) return "#134074";
-  return "#0b2545";
+
+  const legend = LEGENDS[indicator];
+
+  // fallback (não deveria acontecer)
+  if (!legend) return "#ccc";
+
+  const colors = [
+    "#d4e6f0", // mais claro
+    "#a6dcef",
+    "#5aa9e6",
+    "#2e7bb4",
+    "#134074",
+    "#0b2545", // mais escuro
+  ];
+
+  for (let i = 0; i < legend.length; i++) {
+    if (value <= legend[i].max) return colors[i];
+  }
+
+  return colors[colors.length - 1];
 };
 
 const indicatorLabels = {
@@ -42,7 +142,7 @@ const indicatorLabels = {
   population: "Population (2024)",
   energy_suply_adeq: "Energy Supply Adequacy (2023)",
   food_calories: "Food Calories (2022)",
-  gdp: "GDP (2024)",
+  gdp: "GDP per Capita (2024)",
 };
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -137,7 +237,8 @@ export default function WorldMap() {
                   ? countries.alpha3ToAlpha2(iso3, "en")
                   : undefined;
 
-                const fillColor = val !== undefined ? getColor(val) : "#EEE";
+                const fillColor =
+                  val !== undefined ? getColor(indicator, val) : "#a1a1a1ff";
 
                 const tooltipContent = ReactDOMServer.renderToStaticMarkup(
                   <div
@@ -174,7 +275,7 @@ export default function WorldMap() {
                         {indicatorLabels[indicator]}: {val.toFixed(1)}
                       </span>
                     ) : (
-                      <span style={{ color: "#666" }}>No data</span>
+                      <span style={{ color: "#a1a1a1ff" }}>No data</span>
                     )}
                   </div>
                 );
@@ -285,35 +386,49 @@ export default function WorldMap() {
           </div>
         </div>
 
-        {[
-          { label: "≤ 2.5", color: "#d4e6f0ff" },
-          { label: "≤ 5", color: "#a6dcef" },
-          { label: "≤ 10", color: "#5a86e6ff" },
-          { label: "≤ 20", color: "#2e7bb4" },
-          { label: "≤ 40", color: "#134074" },
-          { label: "> 40", color: "#0b2545" },
-          { label: "No data", color: "#ccc" },
-        ].map((item, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              marginBottom: "4px",
-            }}
-          >
+        {/* LEGEND DYNAMIC */}
+        <div style={{ marginTop: 10 }}>
+          {LEGENDS[indicator].map((item, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginBottom: "4px",
+              }}
+            >
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  background: getColor(
+                    indicator,
+                    item.max === Infinity
+                      ? LEGENDS[indicator][i - 1]?.max || 0
+                      : item.max
+                  ),
+                  border: "1px solid #333",
+                  marginRight: 8,
+                }}
+              />
+              <span style={{ color: "white", fontSize: 12 }}>{item.label}</span>
+            </div>
+          ))}
+
+          {/* No data box */}
+          <div style={{ display: "flex", alignItems: "center", marginTop: 6 }}>
             <div
               style={{
                 width: 20,
                 height: 20,
-                background: item.color,
+                background: "#a1a1a1ff",
                 border: "1px solid #333",
                 marginRight: 8,
               }}
             />
-            <span style={{ color: "white", fontSize: 12 }}>{item.label}</span>
+            <span style={{ color: "white", fontSize: 12 }}>No data</span>
           </div>
-        ))}
+        </div>
       </div>
 
       {/* Modal de informação */}
