@@ -218,7 +218,12 @@ export default function WorldMap() {
                 }
 
                 const normalizedName = normalizeCountryName(countryName);
-                const val = dataMap[normalizedName] ?? dataMap[countryName];
+                let val = dataMap[normalizedName] ?? dataMap[countryName];
+
+                // ⚠️ Population vem em números absolutos — convertemos para milhões
+                if (indicator === "population" && val != null) {
+                  val = val / 1_000_000;
+                }
 
                 if (countryName === "North Korea") {
                   console.log("🇰🇵 DEBUG North Korea", {

@@ -93,10 +93,11 @@ export default function CountryDetails({ country, indicator, onClose }) {
         }}
       >
         <div>
-          <strong>Country:</strong> {getDisplayName(p["Country Name"])}
+          <strong>Country:</strong>{" "}
+          {getDisplayName(p.countryOriginal) || p.countryOriginal}
         </div>
         <div>
-          <strong>Value:</strong> {p.Value}
+          <strong>Value:</strong> {p.value}
         </div>
       </div>
     );
@@ -110,14 +111,18 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const [indicatorData, setIndicatorData] = useState(null);
   const [loadingIndicators, setLoadingIndicators] = useState(false);
 
+  // Agora esses formatadores assumem que o valor JÁ foi convertido
+
   const formatCalories = (v) => {
     if (v == null) return "";
-    return (v / 1000).toFixed(1).replace(".0", "") + "k";
+    // ex: 3.2 -> "3.2k"
+    return Number(v).toFixed(1).replace(".0", "") + "k";
   };
 
   const formatGdp = (v) => {
     if (v == null) return "";
-    return (v / 1000).toFixed(1).replace(".0", "") + "k USD";
+    // ex: 22 -> "22k USD"
+    return Number(v).toFixed(1).replace(".0", "") + "k USD";
   };
 
   const formatValue = (indicatorKey, value) => {
@@ -195,6 +200,17 @@ export default function CountryDetails({ country, indicator, onClose }) {
       .then((res) => setGlobalIndicatorData(res.data))
       .catch((err) => console.error("Error fetching global indicator:", err));
   }, [indicator]);
+
+  const indexedScatterData = useMemo(() => {
+    return [...globalIndicatorData]
+      .sort((a, b) => a["Country Name"].localeCompare(b["Country Name"]))
+      .map((d, i) => ({
+        x: i + 1,
+        countryOriginal: d["Country Name"],
+        country: normalizeCountryName(d["Country Name"]),
+        value: d.Value,
+      }));
+  }, [globalIndicatorData]);
 
   // ============================
   // 📊 FETCH COMPARAÇÕES
@@ -330,17 +346,33 @@ export default function CountryDetails({ country, indicator, onClose }) {
     });
   }, [allYearsNum, mainSeriesRaw, compareSeriesRaw, country]);
 
-  const normalizedMergedData = useMemo(() => {
-    if (indicator !== "population") return mergedData;
+  const convertForChart = (indicatorKey, value) => {
+    if (value == null) return null;
 
-    // converte todos os valores populacionais para milhões
+    switch (indicatorKey) {
+      case "gdp":
+        return value / 1000; // 22k → 22
+      case "food_calories":
+        return value / 1000; // 3200 → 3.2
+      case "population":
+        return value / 1_000_000; // 213000000 → 213
+      default:
+        return Number(value); // inflations, poverty etc.
+    }
+  };
+
+  const normalizedMergedData = useMemo(() => {
     return mergedData.map((row) => {
       const newRow = { ...row };
+
       Object.keys(newRow).forEach((key) => {
-        if (key !== "year" && newRow[key] != null) {
-          newRow[key] = newRow[key] / 1_000_000;
-        }
+        if (key === "year") return;
+        if (newRow[key] == null) return;
+
+        // usa o indicador principal (que define a escala de todos no gráfico)
+        newRow[key] = convertForChart(indicator, newRow[key]);
       });
+
       return newRow;
     });
   }, [mergedData, indicator]);
@@ -353,6 +385,12 @@ export default function CountryDetails({ country, indicator, onClose }) {
     const n = m ? Number(m[0]) : NaN;
     return Number.isFinite(n) ? n : null;
   };
+
+  useEffect(() => {
+    if (activePanel === "countries") {
+      setChartMode("line");
+    }
+  }, [activePanel]);
 
   // Combina 1 ou 2 indicadores para o gráfico (sem normalizar), garantindo ano numérico
   const multiIndicatorChartData = useMemo(() => {
@@ -409,19 +447,21 @@ export default function CountryDetails({ country, indicator, onClose }) {
 
   const normalizedIndicatorChartData = useMemo(() => {
     if (!multiIndicatorChartData) return [];
-    if (!selectedIndicators.includes("population"))
-      return multiIndicatorChartData;
 
     return multiIndicatorChartData.map((row) => {
-      const newRow = { ...row };
+      const newRow = { year: row.year };
+
       selectedIndicators.forEach((ind) => {
-        if (ind === "population" && newRow[ind] != null) {
-          newRow[ind] = newRow[ind] / 1_000_000;
-        }
+        newRow[ind] = row[ind] != null ? convertForChart(ind, row[ind]) : null;
       });
+
       return newRow;
     });
   }, [multiIndicatorChartData, selectedIndicators]);
+
+  const selectedScatterPoint = useMemo(() => {
+    return indexedScatterData.find((d) => d.country === backendName);
+  }, [indexedScatterData, backendName]);
 
   const mainSeries = useMemo(() => extractSeries(rows[0]), [rows, indicator]);
 
@@ -1059,7 +1099,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                           : "Show line chart"
                       }
                     >
-                      {chartMode === "line" ? "📈" : "📊"}
+                      {chartMode === "line" ? "🧮" : "📈"}
                     </button>
                   )}
 
@@ -1137,10 +1177,12 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fontSize: "13px",
                                 }}
                                 labelFormatter={(v) => `Year: ${v}`}
-                                formatter={(v) => [
-                                  formatValue(indicator, v),
-                                  indicator,
-                                ]}
+                                formatter={(value, name, props) => {
+                                  return [
+                                    formatValue(indicator, value), // valor formatado corretamente
+                                    props?.name || name, // nome do país correto
+                                  ];
+                                }}
                               />
 
                               {/* Linha do país principal */}
@@ -1198,18 +1240,27 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             >
                               <CartesianGrid stroke="#e2e8f0" />
 
-                              {/* Eixo X oculto (categorias por país) */}
                               <XAxis
-                                dataKey="Country Name"
-                                type="category"
-                                hide
+                                dataKey="x"
+                                type="number"
+                                tick={false}
+                                axisLine={false}
                               />
 
-                              {/* Eixo Y (valor do indicador) */}
                               <YAxis
-                                dataKey="Value"
+                                dataKey="value"
                                 type="number"
                                 tick={{ fontSize: 12, fill: "#334155" }}
+                              />
+
+                              <Scatter
+                                data={indexedScatterData}
+                                line={false}
+                                shape="circle"
+                                name="Countries"
+                                dataKey="value" // 👈 obrigatório
+                                fill="#94a3b8"
+                                opacity={0.7}
                               />
 
                               {/* Linha da média global */}
@@ -1228,28 +1279,51 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                 label="Global Avg"
                               />
 
-                              {/* Pontos de todos os países */}
-                              <Scatter
-                                name="Countries"
-                                data={globalIndicatorData}
-                                fill="#94a3b8"
-                                opacity={0.7}
-                              />
-
-                              {/* Ponto destacado do país atual */}
-                              <Scatter
-                                name="Selected"
-                                data={globalIndicatorData.filter(
-                                  (d) =>
-                                    normalizeCountryName(d["Country Name"]) ===
-                                    backendName
-                                )}
-                                fill="#2563eb"
-                                r={8}
-                              />
-
+                              {/* Ponto do país selecionado */}
+                              {selectedScatterPoint && (
+                                <Scatter
+                                  name="Selected"
+                                  data={[selectedScatterPoint]}
+                                  fill="#2563eb"
+                                  r={8}
+                                />
+                              )}
                               <RechartsTooltip
-                                content={<ScatterTooltipContent />}
+                                cursor={{ strokeDasharray: "3 3" }}
+                                content={({ active, payload }) => {
+                                  if (!active || !payload || !payload.length)
+                                    return null;
+
+                                  const p = payload[0].payload;
+
+                                  // país principal?
+                                  const isMain = p.country === backendName;
+
+                                  const countryLabel = isMain
+                                    ? commonName
+                                    : getDisplayName(p.countryOriginal) ||
+                                      p.countryOriginal;
+
+                                  return (
+                                    <div
+                                      style={{
+                                        background: "#fff",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "8px 12px",
+                                        fontSize: "13px",
+                                        color: "#334155",
+                                      }}
+                                    >
+                                      <div>
+                                        <strong>Country:</strong> {countryLabel}
+                                      </div>
+                                      <div>
+                                        <strong>Value:</strong> {p.value}
+                                      </div>
+                                    </div>
+                                  );
+                                }}
                               />
                             </ScatterChart>
                           )}
@@ -1377,10 +1451,13 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                   fontSize: "13px",
                                 }}
                                 labelFormatter={(v) => `Year: ${v}`}
-                                formatter={(value, name) => [
-                                  formatValue(name, value),
-                                  name.replaceAll("_", " "),
-                                ]}
+                                formatter={(value, name, props) => {
+                                  const key = props?.dataKey; // key REAL: "food_calories", "gdp", "population"
+                                  return [
+                                    formatValue(key, value), // ✔ usa o conversor correto (k, M, k USD)
+                                    key.replaceAll("_", " "), // ✔ label correto
+                                  ];
+                                }}
                               />
                               {indicatorData?.details &&
                                 Object.keys(indicatorData.details || {}).map(
