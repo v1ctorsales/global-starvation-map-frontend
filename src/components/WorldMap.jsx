@@ -119,12 +119,12 @@ const getColor = (indicator, value) => {
   if (!legend) return "#ccc";
 
   const colors = [
-    "#d4e6f0", // mais claro
-    "#a6dcef",
-    "#5aa9e6",
-    "#2e7bb4",
-    "#134074",
-    "#0b2545", // mais escuro
+    "#d3f2a3", // mais claro
+    "#8dda94",
+    "#5fb187",
+    "#32877d",
+    "#136069",
+    "#074050", // mais escuro
   ];
 
   for (let i = 0; i < legend.length; i++) {
