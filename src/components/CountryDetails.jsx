@@ -499,6 +499,23 @@ export default function CountryDetails({ country, indicator, onClose }) {
 
   const COLORS = COLOR_PALETTE;
 
+  const CHART_TITLES = {
+    gdp: "GDP Per Capita Yearly (USD)",
+    food_calories: "Food Calories Available Daily (%)",
+    energy_suply_adeq: "Average Dietary Energy Supply Adequacy (%)",
+    mean_inflation: "Mean Inflation Rate (%)",
+    max_inflation: "Maximum Inflation Shock (%)",
+    poverty: "Poverty Rate (%)",
+    population: "Population (%)",
+    undernourishment: "Undernourishment (%)",
+  };
+
+  // Função auxiliar para pegar o nome ou formatar caso não exista no mapa
+  const getChartTitle = (key) => {
+    if (!key) return "";
+    return CHART_TITLES[key] || key.replaceAll("_", " ");
+  };
+
   // ============================
   // 🧱 UI
   // ============================
@@ -1107,14 +1124,13 @@ export default function CountryDetails({ country, indicator, onClose }) {
                   <h2 className="absolute top-0 left-1/2 -translate-x-1/2 text-slate-700 font-semibold text-lg tracking-wide capitalize">
                     {activePanel === "indicators"
                       ? selectedIndicators.length === 2
-                        ? `${selectedIndicators[0].replaceAll(
-                            "_",
-                            " "
-                          )} vs ${selectedIndicators[1].replaceAll("_", " ")}`
+                        ? `${getChartTitle(
+                            selectedIndicators[0]
+                          )} vs ${getChartTitle(selectedIndicators[1])}`
                         : selectedIndicators.length === 1
-                        ? selectedIndicators[0].replaceAll("_", " ")
+                        ? getChartTitle(selectedIndicators[0])
                         : "Select an indicator"
-                      : indicator?.replaceAll("_", " ") || "Indicator"}
+                      : getChartTitle(indicator) || "Indicator"}
                   </h2>
 
                   {loading ? (
