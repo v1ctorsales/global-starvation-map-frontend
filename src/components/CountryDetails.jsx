@@ -110,6 +110,8 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const [selectedIndicators, setSelectedIndicators] = useState([]);
   const [indicatorData, setIndicatorData] = useState(null);
   const [loadingIndicators, setLoadingIndicators] = useState(false);
+  // Armazena quais indicadores possuem dados para o país atual
+  const [availableIndicators, setAvailableIndicators] = useState(new Set());
 
   // Agora esses formatadores assumem que o valor JÁ foi convertido
 
@@ -174,18 +176,42 @@ export default function CountryDetails({ country, indicator, onClose }) {
   // ============================
   // 📊 FETCH PRINCIPAL
   // ============================
+  // Quantos anos de dados são necessários para considerar o indicador "útil"?
+  const MIN_DATA_POINTS = 3;
+
   useEffect(() => {
     if (!country) return;
     setLoading(true);
-    axios;
+    setAvailableIndicators(new Set()); // Limpa antes de buscar
+
     axios
       .get(
         `${API}/data/all_data_merged?country=${backendName}&indicator=${INDICATOR_MAP[indicator]}`
       )
-
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data[0] : res.data;
         setRows([data]);
+
+        const validIndicators = new Set();
+
+        Object.entries(INDICATOR_MAP).forEach(([uiKey, apiPrefix]) => {
+          // Conta quantos anos têm valor diferente de null
+          const count = Object.keys(data).filter((dataKey) => {
+            return (
+              dataKey.startsWith(`${apiPrefix}_`) && data[dataKey] !== null
+            );
+          }).length;
+
+          // DEBUG: Ver quantos pontos cada indicador tem
+          console.log(`📊 ${uiKey}: ${count} pontos de dados.`);
+
+          // Só adiciona se tiver mais que o mínimo necessário
+          if (count >= MIN_DATA_POINTS) {
+            validIndicators.add(uiKey);
+          }
+        });
+
+        setAvailableIndicators(validIndicators);
       })
       .catch((err) => console.error("Error fetching main country:", err))
       .finally(() => setLoading(false));
@@ -991,100 +1017,103 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             key: "undernourishment",
                             label: "Undernourishment",
                           },
-                          {
-                            key: "population",
-                            label: "Population",
-                          },
-                          {
-                            key: "poverty",
-                            label: "Poverty Rate",
-                          },
-                          {
-                            key: "max_inflation", // 👈 era max_inflation_shock
-                            label: "Maximum Inflation",
-                          },
-                          {
-                            key: "mean_inflation", // 👈 era mean_inflation_rate
-                            label: "Mean Inflation",
-                          },
+                          { key: "population", label: "Population" },
+                          { key: "poverty", label: "Poverty Rate" },
+                          { key: "max_inflation", label: "Maximum Inflation" },
+                          { key: "mean_inflation", label: "Mean Inflation" },
                           {
                             key: "food_calories",
                             label: "Food Calories Available",
                           },
                           {
                             key: "energy_suply_adeq",
-                            label: "Dietary Energy Supply Adequacy",
+                            label: "Energy Supply Adequacy",
                           },
-                          {
-                            key: "gdp",
-                            label: "Gross Domestic Product (GDP)",
-                          },
+                          { key: "gdp", label: "Gross Domestic Product (GDP)" },
                         ].map((item) => {
                           const isSelected = selectedIndicators.includes(
                             item.key
                           );
 
+                          // Verifica se o indicador está na lista de "Válidos"
+                          // Se a lista estiver vazia (carregando), assumimos true por segurança, senão usamos o Set.
+                          const hasData =
+                            availableIndicators.size === 0 ||
+                            availableIndicators.has(item.key);
+
                           return (
                             <motion.button
                               key={item.key}
+                              // Desabilita o clique real se não tiver dados suficientes
+                              disabled={!hasData}
                               onClick={() => {
+                                // Lógica de seleção
                                 setShowComparisons(false);
                                 setSelectedIndicators((prev) => {
                                   const current = [...prev];
-
-                                  // se já estava selecionado → desmarca
+                                  // 1. Se já selecionado -> remove
                                   if (current.includes(item.key)) {
                                     return current.filter(
                                       (v) => v !== item.key
                                     );
                                   }
-
-                                  // se já há 2 selecionados → bloqueia
+                                  // 2. Se já tem 2 -> bloqueia
                                   if (current.length >= 2) return current;
-
-                                  // adiciona novo
+                                  // 3. Adiciona
                                   return [...current, item.key];
                                 });
                               }}
+                              // Estilos visuais
                               className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition border shadow-sm w-full
-              ${
-                isSelected
-                  ? "bg-[#2563eb]/10 border-[#2563eb]/50"
-                  : "bg-white border-slate-300 hover:bg-slate-50"
-              }`}
+          ${
+            !hasData
+              ? "bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed grayscale" // Bloqueado (cinza e transparente)
+              : isSelected
+              ? "bg-[#2563eb]/10 border-[#2563eb]/50 cursor-pointer" // Selecionado
+              : "bg-white border-slate-300 hover:bg-slate-50 cursor-pointer" // Disponível
+          }`}
                             >
-                              {/* Esquerda: checkbox + nome */}
                               <div className="flex items-center gap-3">
                                 <input
                                   type="checkbox"
                                   readOnly
                                   checked={isSelected}
+                                  disabled={!hasData}
                                   className={`w-4 h-4 rounded border transition-all ${
-                                    isSelected
+                                    !hasData
+                                      ? "border-slate-200 bg-slate-100"
+                                      : isSelected
                                       ? "bg-[#2563eb] border-[#2563eb]"
                                       : "border-slate-400 bg-transparent"
                                   }`}
                                 />
                                 <span
                                   className={`text-left ${
-                                    isSelected
+                                    !hasData
+                                      ? "text-slate-400 decoration-slate-300 line-through" // Texto riscado
+                                      : isSelected
                                       ? "text-slate-900 font-semibold"
                                       : "text-slate-700"
                                   }`}
                                 >
                                   {item.label}
+                                  {!hasData && (
+                                    <span className="text-xs ml-2 font-normal no-underline opacity-70">
+                                      (Insufficient data)
+                                    </span>
+                                  )}
                                 </span>
                               </div>
 
-                              {/* Direita: cor do gráfico */}
-                              {isSelected && (
+                              {/* Indicador de cor (só se estiver selecionado e válido) */}
+                              {isSelected && hasData && (
                                 <span
                                   className="w-4 h-4 rounded-full border border-slate-200 shadow-sm"
                                   style={{
                                     backgroundColor:
                                       selectedIndicators.indexOf(item.key) === 0
-                                        ? "#2563eb" // primeiro selecionado
-                                        : "#f97316", // segundo selecionado
+                                        ? "#2563eb"
+                                        : "#f97316",
                                   }}
                                 />
                               )}

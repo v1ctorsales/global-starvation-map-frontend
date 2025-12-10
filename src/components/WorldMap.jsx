@@ -243,7 +243,7 @@ export default function WorldMap() {
                   : undefined;
 
                 const fillColor =
-                  val !== undefined ? getColor(indicator, val) : "#a1a1a1ff";
+                  val !== undefined ? getColor(indicator, val) : "#7f7f7f";
 
                 const tooltipContent = ReactDOMServer.renderToStaticMarkup(
                   <div
