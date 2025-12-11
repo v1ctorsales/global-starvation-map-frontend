@@ -672,7 +672,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: "5%", opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.5, ease: [0.25, 0.8, 0.25, 1] }}
-            className="relative w-full h-full max-w-[1300px] max-h-[850px]
+            className="relative w-full h-full
         bg-white rounded-3xl border border-slate-200/70
         shadow-[0_20px_60px_-10px_rgba(0,0,0,0.15)]
         overflow-hidden flex flex-col box-border"
@@ -789,7 +789,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -10 }}
                       transition={{ duration: 0.35, ease: "easeInOut" }}
-                      className="flex flex-col items-center gap-6"
+                      className="flex flex-col items-center"
                     >
                       {/* Bandeira + nome */}
                       <div className="flex items-center gap-3">
@@ -1058,19 +1058,28 @@ export default function CountryDetails({ country, indicator, onClose }) {
                             key: "undernourishment",
                             label: "Undernourishment",
                           },
-                          { key: "population", label: "Population" },
+                          {
+                            key: "population",
+                            label: "Population",
+                          },
                           { key: "poverty", label: "Poverty Rate" },
-                          { key: "max_inflation", label: "Maximum Inflation" },
-                          { key: "mean_inflation", label: "Mean Inflation" },
+                          {
+                            key: "max_inflation",
+                            label: "Maximum Inflation Shock",
+                          },
+                          {
+                            key: "mean_inflation",
+                            label: "Mean Inflation Rate",
+                          },
                           {
                             key: "food_calories",
-                            label: "Food Calories Available",
+                            label: "Food Calories Available Daily",
                           },
                           {
                             key: "energy_suply_adeq",
-                            label: "Energy Supply Adequacy",
+                            label: "Avg. Energy Supply Adequacy",
                           },
-                          { key: "gdp", label: "Gross Domestic Product (GDP)" },
+                          { key: "gdp", label: "GDP Per Capita Yearly" },
                         ].map((item) => {
                           const isSelected = selectedIndicators.includes(
                             item.key
