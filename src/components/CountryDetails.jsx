@@ -216,17 +216,12 @@ export default function CountryDetails({ country, indicator, onClose }) {
               );
             })
             .map(([key, value]) => {
-              // 2. Transforma em valor absoluto (módulo) e porcentagem
-              const absValue = Math.abs(value);
-              const percentValue = absValue * 100;
-
               return {
-                name: CORRELATION_LABELS[key], // Usa o nome novo
-                // Arredonda para 2 casas e converte para número novamente para o gráfico ler
-                value: parseFloat(percentValue.toFixed(2)),
+                name: CORRELATION_LABELS[key],
+                value: parseFloat(value.toFixed(3)),
               };
             })
-            .sort((a, b) => b.value - a.value); // Ordena do maior % para o menor
+            .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 
           setCorrelations(formattedCorrelations);
         }
@@ -1024,7 +1019,7 @@ export default function CountryDetails({ country, indicator, onClose }) {
                                 interval={0}
                               />
                               <RechartsTooltip
-                                formatter={(value) => value + "%"}
+                                formatter={(value) => value}
                                 cursor={{ fill: "transparent" }}
                               />
                               <ReferenceLine x={0} stroke="#000" />
