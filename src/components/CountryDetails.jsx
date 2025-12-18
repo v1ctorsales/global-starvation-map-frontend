@@ -183,10 +183,10 @@ export default function CountryDetails({ country, indicator, onClose }) {
   const MIN_DATA_POINTS = 3;
   const [correlations, setCorrelations] = useState([]);
   const CORRELATION_LABELS = {
-    gdp_percapita: "Availability",
-    max_inflation_shock: "Access",
+    gdp_percapita: "Country-based context",
+    max_inflation_shock: "Affordability",
     energy_supply_adeq: "Utilization",
-    poverty: "Country-based context",
+    poverty: "Availability",
   };
 
   useEffect(() => {

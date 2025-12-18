@@ -31,7 +31,11 @@ export default function InfoModal({ onClose }) {
               selected indicator.
               <br />
               <br />
-              Devloped by <b>Victor Sales</b> and <b>Valentina Serrano-Muñoz</b>
+              Devloped by{" "}
+              <a href="https://www.victorsales.com.br" target="_blank">
+                <b>Victor Sales</b>
+              </a>{" "}
+              and <b>Valentina Serrano-Muñoz</b>
             </Dialog.Description>
 
             <div className="flex justify-end mt-6">
