@@ -351,7 +351,7 @@ export default function WorldMap() {
                   ? countries.alpha3ToAlpha2(iso3, "en")
                   : undefined;
                 const fillColor =
-                  val !== undefined ? getColor(indicator, val) : "#7f7f7f";
+                  val !== undefined ? getColor(indicator, val) : "#b9b9b9ff";
 
                 const tooltipContent = ReactDOMServer.renderToStaticMarkup(
                   <div
@@ -404,7 +404,7 @@ export default function WorldMap() {
                         outline: "none",
                         transition: "fill 0.3s ease",
                       },
-                      hover: { fill: "#999", outline: "none" },
+                      hover: { fill: "#474747c0", outline: "none" },
                       pressed: { fill: "#222", outline: "none" },
                     }}
                     onClick={() => {
