@@ -5,3 +5,12 @@
 body {
   background-color: #1b1b1b;
 }
+
+.map-fade {
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.map-fade.visible {
+  opacity: 1;
+}

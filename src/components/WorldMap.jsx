@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import {
   ComposableMap,
@@ -19,15 +19,11 @@ import ReactDOM from "react-dom";
 import {
   normalizeCountryName,
   getDisplayName,
-  getGeoJsonName,
 } from "../utils/CountriesDictionary";
 
 countries.registerLocale(enLocale);
 
 const LEGENDS = {
-  // ---------------------------
-  // INDICADORES EM PERCENTUAL
-  // ---------------------------
   undernourishment: [
     { max: 2.5, label: "≤ 2.5%" },
     { max: 5, label: "≤ 5%" },
@@ -60,10 +56,6 @@ const LEGENDS = {
     { max: 80, label: "≤ 80%" },
     { max: Infinity, label: "> 80%" },
   ],
-
-  // ---------------------------
-  // POPULATION — MILHÕES
-  // ---------------------------
   population: [
     { max: 1, label: "≤ 1M" },
     { max: 5, label: "≤ 5M" },
@@ -72,10 +64,6 @@ const LEGENDS = {
     { max: 100, label: "≤ 100M" },
     { max: Infinity, label: "> 100M" },
   ],
-
-  // ---------------------------
-  // FOOD CALORIES — mil kcal/dia
-  // ---------------------------
   food_calories: [
     { max: 2200, label: "≤ 2200" },
     { max: 2600, label: "≤ 2600" },
@@ -84,10 +72,6 @@ const LEGENDS = {
     { max: 3800, label: "≤ 3800" },
     { max: Infinity, label: "> 3800" },
   ],
-
-  // ---------------------------
-  // ENERGY SUPPLY ADEQUACY — %
-  // ---------------------------
   energy_suply_adeq: [
     { max: 90, label: "≤ 90%" },
     { max: 100, label: "≤ 100%" },
@@ -96,10 +80,6 @@ const LEGENDS = {
     { max: 160, label: "≤ 160%" },
     { max: Infinity, label: "> 160%" },
   ],
-
-  // ---------------------------
-  // GDP per capita — USD
-  // ---------------------------
   gdp: [
     { max: 5000, label: "≤ $5k" },
     { max: 10000, label: "≤ $10k" },
@@ -112,25 +92,19 @@ const LEGENDS = {
 
 const getColor = (indicator, value) => {
   if (value == null || isNaN(value)) return "#ccc";
-
   const legend = LEGENDS[indicator];
-
-  // fallback (não deveria acontecer)
   if (!legend) return "#ccc";
-
   const colors = [
-    "#d3f2a3", // mais claro
+    "#d3f2a3",
     "#8dda94",
     "#5fb187",
     "#32877d",
     "#136069",
-    "#074050", // mais escuro
+    "#074050",
   ];
-
   for (let i = 0; i < legend.length; i++) {
     if (value <= legend[i].max) return colors[i];
   }
-
   return colors[colors.length - 1];
 };
 
@@ -148,37 +122,202 @@ const indicatorLabels = {
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 const API = import.meta.env.VITE_API_BASE_URL;
 
+// Texto a ser digitado
+const FULL_TEXT =
+  "Developed by Victor Sales and Valentina-Serrano-Muñoz for AISS";
+
 export default function WorldMap() {
   const [data, setData] = useState([]);
   const [indicator, setIndicator] = useState("undernourishment");
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
+  // Estados de carregamento
+  const [isLoadingApi, setIsLoadingApi] = useState(true);
+  const [showLoadingUI, setShowLoadingUI] = useState(true);
+  const [hasLoadedFirstTime, setHasLoadedFirstTime] = useState(false);
+  // NOVO ESTADO: Controla a transição de spinner para checkmark
+  const [isLoadingComplete, setIsLoadingComplete] = useState(false);
+
+  // Estado para o efeito de digitação
+  const [typedText, setTypedText] = useState("");
+
+  // 1. Timers Globais (Alterado para incluir o estado de completion)
   useEffect(() => {
+    setShowLoadingUI(true);
+    setIsLoadingComplete(false);
+
+    // Timer 1: Troca o spinner pelo checkmark um pouco antes do fim (4.5s)
+    const completionTimer = setTimeout(() => {
+      setIsLoadingComplete(true);
+    }, 4100);
+
+    // Timer 2: Inicia o fade-out do overlay completo (5s)
+    const fadeOutTimer = setTimeout(() => {
+      setShowLoadingUI(false);
+    }, 5000);
+
+    return () => {
+      clearTimeout(completionTimer);
+      clearTimeout(fadeOutTimer);
+    };
+  }, []);
+
+  // 2. Lógica do efeito de digitação (Typing Effect)
+  useEffect(() => {
+    let index = 0;
+    setTypedText("");
+
+    const typingInterval = setInterval(() => {
+      if (index <= FULL_TEXT.length) {
+        setTypedText(FULL_TEXT.slice(0, index));
+        index++;
+      } else {
+        clearInterval(typingInterval);
+      }
+    }, 40);
+
+    return () => clearInterval(typingInterval);
+  }, []);
+
+  // 3. Chamada da API
+  useEffect(() => {
+    setIsLoadingApi(true);
     axios
       .get(`${API}/latest?indicator=${indicator}`)
       .then((res) => {
-        setData(res.data);
+        setData(Array.isArray(res.data) ? res.data : []);
       })
-      .catch((err) => console.error("Erro na requisição:", err));
+      .catch((err) => {
+        console.error("Erro na requisição:", err);
+        setData([]);
+      })
+      .finally(() => {
+        setIsLoadingApi(false);
+        setHasLoadedFirstTime(true);
+      });
   }, [indicator]);
 
+  const isOverlayActive = showLoadingUI || !hasLoadedFirstTime;
+
   const dataMap = {};
-  data.forEach((d) => {
-    const normalizedName = normalizeCountryName(d["Country Name"]);
-    dataMap[normalizedName] = d.Value;
-  });
-
-  const values = data.map((d) => d.Value).filter((v) => v != null);
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
-
-  const colorScale = scaleLinear()
-    .domain([minVal, maxVal])
-    .range(["#c6dbef", "#08306b"]);
+  if (Array.isArray(data)) {
+    data.forEach((d) => {
+      const normalizedName = normalizeCountryName(d["Country Name"]);
+      dataMap[normalizedName] = d.Value;
+    });
+  }
 
   return (
     <>
+      {/* CSS Styles: Spin, Blink Cursor e PopIn */}
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          @keyframes blink {
+            50% { opacity: 0; }
+          }
+          /* Nova animação para o checkmark aparecer */
+          @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            70% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          .cursor-blink {
+            animation: blink 1s step-end infinite;
+          }
+        `}
+      </style>
+
+      {/* LOADING OVERLAY */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#1b1b1b",
+          zIndex: 50,
+          flexDirection: "column",
+          gap: "4rem",
+          // Transição do container (fundo e texto)
+          opacity: isOverlayActive ? 1 : 0,
+          visibility: isOverlayActive ? "visible" : "hidden",
+          transition: "opacity 1.2s ease-out, visibility 1.2s ease-out",
+          pointerEvents: isOverlayActive ? "auto" : "none",
+        }}
+      >
+        {/* TEXTO com efeito de digitação */}
+        <div
+          style={{
+            color: "white",
+            fontFamily: "monospace",
+            fontSize: "16px",
+            textAlign: "center",
+            maxWidth: "90%",
+            lineHeight: "1.5",
+          }}
+        >
+          {typedText}
+          <span
+            className="cursor-blink"
+            style={{ color: "#5fb187", fontWeight: "bold" }}
+          >
+            |
+          </span>
+        </div>
+
+        <div
+          style={{
+            width: 25,
+            height: 25,
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {!isLoadingComplete ? (
+            // SPINNER (Enquanto não completou)
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                position: "absolute",
+                border: "3px solid rgba(255,255,255,0.1)",
+                borderTop: "3px solid #5fb187",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+          ) : (
+            // CHECKMARK SVG (Quando completou)
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#5fb187"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                width: "100%",
+                height: "100%",
+                position: "absolute",
+                animation: "popIn .6s ease-out forwards",
+              }}
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </div>
+      </div>
+
+      {/* MAPA */}
       <ComposableMap
         projection="geoEqualEarth"
         projectionConfig={{ scale: 188 }}
@@ -200,48 +339,17 @@ export default function WorldMap() {
             {({ geographies }) =>
               geographies.map((geo) => {
                 const countryName = geo.properties.name;
-
-                if (countryName === "North Korea") {
-                  console.log(
-                    "✅ GeoJSON match",
-                    "countryName:",
-                    countryName,
-                    "→ backend:",
-                    normalizeCountryName(countryName),
-                    "→ geojson:",
-                    getGeoJsonName(countryName)
-                  );
-                }
-
-                if (countryName.toLowerCase().includes("korea")) {
-                  console.log("🧭 GeoJSON countryName:", countryName);
-                }
-
                 const normalizedName = normalizeCountryName(countryName);
                 let val = dataMap[normalizedName] ?? dataMap[countryName];
 
-                // ⚠️ Population vem em números absolutos — convertemos para milhões
                 if (indicator === "population" && val != null) {
                   val = val / 1_000_000;
-                }
-
-                if (countryName === "North Korea") {
-                  console.log("🇰🇵 DEBUG North Korea", {
-                    countryName,
-                    normalizedName,
-                    "dataMap[normalizedName]": dataMap[normalizedName],
-                    "dataMap[countryName]": dataMap[countryName],
-                    allDataKeys: Object.keys(dataMap).filter((k) =>
-                      k.toLowerCase().includes("korea")
-                    ),
-                  });
                 }
 
                 const iso3 = countries.numericToAlpha3(geo.id);
                 const iso2 = iso3
                   ? countries.alpha3ToAlpha2(iso3, "en")
                   : undefined;
-
                 const fillColor =
                   val !== undefined ? getColor(indicator, val) : "#7f7f7f";
 
@@ -274,7 +382,6 @@ export default function WorldMap() {
                       )}
                       <strong>{getDisplayName(normalizedName)}</strong>
                     </span>
-
                     {val !== undefined ? (
                       <span>
                         {indicatorLabels[indicator]}: {val.toFixed(1)}
@@ -292,12 +399,15 @@ export default function WorldMap() {
                     data-tooltip-id="country-tooltip"
                     data-tooltip-html={tooltipContent}
                     style={{
-                      default: { fill: fillColor, outline: "none" },
+                      default: {
+                        fill: fillColor,
+                        outline: "none",
+                        transition: "fill 0.3s ease",
+                      },
                       hover: { fill: "#999", outline: "none" },
                       pressed: { fill: "#222", outline: "none" },
                     }}
                     onClick={() => {
-                      const normalizedName = normalizeCountryName(countryName);
                       const val =
                         dataMap[normalizedName] ?? dataMap[countryName];
                       if (val !== undefined && !isNaN(val)) {
@@ -311,6 +421,8 @@ export default function WorldMap() {
           </Geographies>
         </ZoomableGroup>
       </ComposableMap>
+
+      {/* Controles e Legenda */}
       <div
         style={{
           position: "absolute",
@@ -319,11 +431,10 @@ export default function WorldMap() {
           background: "rgba(0,0,0,0.4)",
           padding: "10px",
           borderRadius: "8px",
+          zIndex: 40,
         }}
       >
-        {/* Linha com ícone + select */}
         <div className="relative mb-3 flex items-center gap-3">
-          {/* Select de indicador */}
           <div className="relative flex-1">
             <select
               id="indicator"
@@ -344,8 +455,6 @@ export default function WorldMap() {
                 </option>
               ))}
             </select>
-
-            {/* seta decorativa */}
             <svg
               className="absolute right-[0.6rem] top-[14px] w-4 h-4 text-white/70 pointer-events-none"
               xmlns="http://www.w3.org/2000/svg"
@@ -363,7 +472,6 @@ export default function WorldMap() {
           </div>
         </div>
 
-        {/* LEGEND DYNAMIC */}
         <div style={{ marginTop: 10 }}>
           {LEGENDS[indicator].map((item, i) => (
             <div
@@ -392,7 +500,6 @@ export default function WorldMap() {
             </div>
           ))}
 
-          {/* No data box */}
           <div style={{ display: "flex", alignItems: "center", marginTop: 6 }}>
             <div
               style={{
@@ -404,11 +511,9 @@ export default function WorldMap() {
               }}
             />
             <span style={{ color: "white", fontSize: 12 }}>No data</span>
-            {/* Ícone de informação */}
             <button
               onClick={() => setShowInfoModal(true)}
               className="text-white/80 hover:text-white transition transform hover:scale-110 focus:outline-none"
-              title="About this map"
               style={{
                 background: "transparent",
                 border: "none",
@@ -436,15 +541,12 @@ export default function WorldMap() {
         </div>
       </div>
 
-      {/* Modal de informação */}
       {showInfoModal &&
         ReactDOM.createPortal(
           <InfoModal onClose={() => setShowInfoModal(false)} />,
           document.body
         )}
-
       <Tooltip id="country-tooltip" float />
-      {/* Portal do modal fora da área do mapa */}
       {ReactDOM.createPortal(
         selectedCountry ? (
           <CountryDetails
