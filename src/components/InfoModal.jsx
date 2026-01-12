@@ -22,20 +22,43 @@ export default function InfoModal({ onClose }) {
               About this Map
             </Dialog.Title>
             <Dialog.Description className="text-sm text-slate-600 leading-relaxed">
-              This interactive map visualizes global indicators such as
-              undernourishment, poverty rate, and population.
+              This interactive map visualizes global indicators that directly
+              impact starvation.
               <br />
               <br />
-              Data sources include the FAO, World Bank, and UN datasets. Each
+              Data sources include FAO, World Bank, and UN datasets. Each
               country’s color represents the most recent available data for the
               selected indicator.
               <br />
               <br />
-              Devloped by{" "}
-              <a href="https://www.victorsales.com.br" target="_blank">
+              You can access the complete report and detailed methodology{" "}
+              <a
+                href="/StarvationReport.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                here
+              </a>
+              .
+              <br />
+              <br />
+              Developed by{" "}
+              <a
+                href="https://www.victorsales.com.br"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <b>Victor Sales</b>
               </a>{" "}
-              and <b>Valentina Serrano-Muñoz</b>
+              and{" "}
+              <a
+                href="https://www.linkedin.com/in/valentina-serrano-muñoz-996714245"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <b>Valentina Serrano-Muñoz</b>
+              </a>
             </Dialog.Description>
 
             <div className="flex justify-end mt-6">
