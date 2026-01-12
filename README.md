@@ -1,16 +1,98 @@
-# React + Vite
+# Global Starvation Map – Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This repository contains the frontend application for the **Global Starvation Map** project.  
+The frontend is responsible for visualizing global food security and socioeconomic indicators using interactive maps and charts, consuming data from a FastAPI backend.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
 
-## React Compiler
+- React
+- JavaScript (ES6+)
+- React Simple Maps
+- Recharts
+- Axios
+- CSS
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## Project Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```
+frontend/
+│
+├── public/
+│   └── index.html
+│
+├── src/
+│   ├── components/     # Reusable UI components (maps, charts)
+│   ├── utils/          # Helper functions
+│   ├── App.jsx
+│   └── main.jsx
+│
+├── package.json
+└── README.md
+```
+
+---
+
+## Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/username/global-starvation-map-frontend.git
+cd global-starvation-map-frontend
+npm install
+```
+
+Run the development server:
+
+```bash
+npm run dev
+```
+
+The application will be available at:
+
+```
+http://localhost:5173
+```
+
+---
+
+## Backend Integration
+
+The frontend consumes data from the FastAPI backend.
+
+Example request:
+
+```javascript
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: "https://your-backend-url"
+});
+
+export const getLatestIndicator = (indicator) =>
+  api.get(`/latest?indicator=${indicator}`);
+```
+
+---
+
+## Live Demo
+
+Food Security Dashboard  
+https://starvation.vercel.app
+
+---
+
+## Authors
+
+Victor Alves da Silva Sales  
+Valentina Serrano-Muñoz
+
+---
+
+## License
+
+This project is distributed under the MIT License.
