@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import {
   ComposableMap,
@@ -10,7 +10,6 @@ import { Tooltip } from "react-tooltip";
 import "react-tooltip/dist/react-tooltip.css";
 import countries from "i18n-iso-countries";
 import enLocale from "i18n-iso-countries/langs/en.json";
-import { scaleLinear } from "d3-scale";
 import ReactDOMServer from "react-dom/server";
 import ReactCountryFlag from "react-country-flag";
 import CountryDetails from "./CountryDetails";
@@ -122,7 +121,6 @@ const indicatorLabels = {
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 const API = import.meta.env.VITE_API_BASE_URL;
 
-// Texto a ser digitado
 const FULL_TEXT =
   "Developed by Victor Sales and Valentina-Serrano-Muñoz for AISS";
 
@@ -136,23 +134,20 @@ export default function WorldMap() {
   const [isLoadingApi, setIsLoadingApi] = useState(true);
   const [showLoadingUI, setShowLoadingUI] = useState(true);
   const [hasLoadedFirstTime, setHasLoadedFirstTime] = useState(false);
-  // NOVO ESTADO: Controla a transição de spinner para checkmark
   const [isLoadingComplete, setIsLoadingComplete] = useState(false);
 
   // Estado para o efeito de digitação
   const [typedText, setTypedText] = useState("");
 
-  // 1. Timers Globais (Alterado para incluir o estado de completion)
+  // 1. Timers Globais
   useEffect(() => {
     setShowLoadingUI(true);
     setIsLoadingComplete(false);
 
-    // Timer 1: Troca o spinner pelo checkmark um pouco antes do fim (4.5s)
     const completionTimer = setTimeout(() => {
       setIsLoadingComplete(true);
     }, 4100);
 
-    // Timer 2: Inicia o fade-out do overlay completo (5s)
     const fadeOutTimer = setTimeout(() => {
       setShowLoadingUI(false);
     }, 5000);
@@ -163,7 +158,7 @@ export default function WorldMap() {
     };
   }, []);
 
-  // 2. Lógica do efeito de digitação (Typing Effect)
+  // 2. Typing Effect
   useEffect(() => {
     let index = 0;
     setTypedText("");
@@ -210,7 +205,6 @@ export default function WorldMap() {
 
   return (
     <>
-      {/* CSS Styles: Spin, Blink Cursor e PopIn */}
       <style>
         {`
           @keyframes spin {
@@ -220,343 +214,429 @@ export default function WorldMap() {
           @keyframes blink {
             50% { opacity: 0; }
           }
-          /* Nova animação para o checkmark aparecer */
           @keyframes popIn {
             0% { transform: scale(0); opacity: 0; }
             70% { transform: scale(1.2); }
             100% { transform: scale(1); opacity: 1; }
           }
+          @keyframes rotate-phone {
+            0%, 10% { transform: rotate(0deg); }
+            40%, 60% { transform: rotate(90deg); }
+            90%, 100% { transform: rotate(90deg); }
+          }
           .cursor-blink {
             animation: blink 1s step-end infinite;
+          }
+
+          /* Lógica de Orientação: */
+          
+          /* Por padrão, esconde o aviso e mostra o conteúdo */
+          .rotate-warning-container { display: none; }
+          .main-content-container { display: block; }
+
+          /* Apenas em telas pequenas (mobile/tablet) E que estejam em Portrait (em pé) */
+          @media only screen and (max-width: 900px) and (orientation: portrait) {
+            .rotate-warning-container { 
+              display: flex; 
+              position: fixed;
+              inset: 0;
+              z-index: 9999;
+              background-color: #111;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              text-align: center;
+              padding: 2rem;
+            }
+            .main-content-container { display: none; }
           }
         `}
       </style>
 
-      {/* LOADING OVERLAY */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#1b1b1b",
-          zIndex: 50,
-          flexDirection: "column",
-          gap: "4rem",
-          // Transição do container (fundo e texto)
-          opacity: isOverlayActive ? 1 : 0,
-          visibility: isOverlayActive ? "visible" : "hidden",
-          transition: "opacity 1.2s ease-out, visibility 1.2s ease-out",
-          pointerEvents: isOverlayActive ? "auto" : "none",
-        }}
-      >
-        {/* TEXTO com efeito de digitação */}
-        <div
-          style={{
-            color: "white",
-            fontFamily: "monospace",
-            fontSize: "16px",
-            textAlign: "center",
-            maxWidth: "90%",
-            lineHeight: "1.5",
-          }}
-        >
-          {typedText}
-          <span
-            className="cursor-blink"
-            style={{ color: "#5fb187", fontWeight: "bold" }}
+      {/* AVISO DE ROTAÇÃO (Visível apenas em Mobile Portrait) */}
+      <div className="rotate-warning-container">
+        <div style={{ width: 64, height: 64, marginBottom: 20 }}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
           >
-            |
-          </span>
-        </div>
-
-        <div
-          style={{
-            width: 25,
-            height: 25,
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {!isLoadingComplete ? (
-            // SPINNER (Enquanto não completou)
-            <div
-              style={{
-                width: "100%",
-                height: "100%",
-                position: "absolute",
-                border: "3px solid rgba(255,255,255,0.1)",
-                borderTop: "3px solid #5fb187",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"
             />
-          ) : (
-            // CHECKMARK SVG (Quando completou)
+          </svg>
+          <div
+            style={{
+              marginTop: "-40px",
+              animation: "rotate-phone 2s infinite ease-in-out alternate",
+            }}
+          >
             <svg
-              xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="none"
               stroke="#5fb187"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                width: "100%",
-                height: "100%",
-                position: "absolute",
-                animation: "popIn .6s ease-out forwards",
-              }}
-            >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          )}
-        </div>
-      </div>
-
-      {/* MAPA */}
-      <ComposableMap
-        projection="geoEqualEarth"
-        projectionConfig={{ scale: 188 }}
-        width={980}
-        height={500}
-        style={{ width: "100%", height: "100vh" }}
-      >
-        <ZoomableGroup
-          center={[0, 0]}
-          zoom={1}
-          minZoom={1}
-          maxZoom={8}
-          translateExtent={[
-            [0, 0],
-            [980, 500],
-          ]}
-        >
-          <Geographies geography={geoUrl}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const countryName = geo.properties.name;
-                const normalizedName = normalizeCountryName(countryName);
-                let val = dataMap[normalizedName] ?? dataMap[countryName];
-
-                if (indicator === "population" && val != null) {
-                  val = val / 1_000_000;
-                }
-
-                const iso3 = countries.numericToAlpha3(geo.id);
-                const iso2 = iso3
-                  ? countries.alpha3ToAlpha2(iso3, "en")
-                  : undefined;
-                const fillColor =
-                  val !== undefined ? getColor(indicator, val) : "#b9b9b9ff";
-
-                const tooltipContent = ReactDOMServer.renderToStaticMarkup(
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "4px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      {iso2 && (
-                        <ReactCountryFlag
-                          countryCode={iso2}
-                          svg
-                          style={{
-                            width: "1.5em",
-                            height: "1.5em",
-                            borderRadius: "2px",
-                          }}
-                          title={countryName}
-                        />
-                      )}
-                      <strong>{getDisplayName(normalizedName)}</strong>
-                    </span>
-                    {val !== undefined ? (
-                      <span>
-                        {indicatorLabels[indicator]}: {val.toFixed(1)}
-                      </span>
-                    ) : (
-                      <span style={{ color: "#a1a1a1ff" }}>No data</span>
-                    )}
-                  </div>
-                );
-
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    data-tooltip-id="country-tooltip"
-                    data-tooltip-html={tooltipContent}
-                    style={{
-                      default: {
-                        fill: fillColor,
-                        outline: "none",
-                        transition: "fill 0.3s ease",
-                      },
-                      hover: { fill: "#474747c0", outline: "none" },
-                      pressed: { fill: "#222", outline: "none" },
-                    }}
-                    onClick={() => {
-                      const val =
-                        dataMap[normalizedName] ?? dataMap[countryName];
-                      if (val !== undefined && !isNaN(val)) {
-                        setSelectedCountry(normalizedName);
-                      }
-                    }}
-                  />
-                );
-              })
-            }
-          </Geographies>
-        </ZoomableGroup>
-      </ComposableMap>
-
-      {/* Controles e Legenda */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 20,
-          left: 20,
-          background: "rgba(0,0,0,0.4)",
-          padding: "10px",
-          borderRadius: "8px",
-          zIndex: 40,
-        }}
-      >
-        <div className="relative mb-3 flex items-center gap-3">
-          <div className="relative flex-1">
-            <select
-              id="indicator"
-              value={indicator}
-              onChange={(e) => setIndicator(e.target.value)}
-              className="w-[220px] appearance-none bg-[#ffffff10] text-white text-sm font-medium
-      px-4 py-2.5 rounded-xl border border-white/30 backdrop-blur-sm
-      hover:bg-[#ffffff15] focus:outline-none focus:ring-2 focus:ring-[#40a9ff]/70 focus:border-[#40a9ff]/70
-      transition duration-300"
-            >
-              {Object.entries(indicatorLabels).map(([key, label]) => (
-                <option
-                  key={key}
-                  value={key}
-                  className="text-slate-800 bg-white"
-                >
-                  {label}
-                </option>
-              ))}
-            </select>
-            <svg
-              className="absolute right-[0.6rem] top-[14px] w-4 h-4 text-white/70 pointer-events-none"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+              strokeWidth="2"
             >
               <path
+                d="M4 12a8 8 0 018-8m8 8a8 8 0 01-8 8"
+                strokeLinecap="round"
+                style={{ opacity: 0.5 }}
+              />
+              <path
+                d="M12 4l4 4-4 4"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
               />
             </svg>
           </div>
         </div>
+        <h2
+          style={{
+            fontSize: "1.5rem",
+            marginBottom: "0.5rem",
+            fontWeight: "bold",
+          }}
+        >
+          Please Rotate Your Device
+        </h2>
+        <p style={{ color: "#aaa" }}>
+          This map is optimized for landscape view.
+        </p>
+      </div>
 
-        <div style={{ marginTop: 10 }}>
-          {LEGENDS[indicator].map((item, i) => (
+      {/* CONTAINER PRINCIPAL (Escondido em Mobile Portrait) */}
+      <div className="main-content-container">
+        {/* LOADING OVERLAY */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#1b1b1b",
+            zIndex: 50,
+            flexDirection: "column",
+            gap: "4rem",
+            opacity: isOverlayActive ? 1 : 0,
+            visibility: isOverlayActive ? "visible" : "hidden",
+            transition: "opacity 1.2s ease-out, visibility 1.2s ease-out",
+            pointerEvents: isOverlayActive ? "auto" : "none",
+          }}
+        >
+          <div
+            style={{
+              color: "white",
+              fontFamily: "monospace",
+              fontSize: "16px",
+              textAlign: "center",
+              maxWidth: "90%",
+              lineHeight: "1.5",
+            }}
+          >
+            {typedText}
+            <span
+              className="cursor-blink"
+              style={{ color: "#5fb187", fontWeight: "bold" }}
+            >
+              |
+            </span>
+          </div>
+
+          <div
+            style={{
+              width: 25,
+              height: 25,
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {!isLoadingComplete ? (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  position: "absolute",
+                  border: "3px solid rgba(255,255,255,0.1)",
+                  borderTop: "3px solid #5fb187",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#5fb187"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  position: "absolute",
+                  animation: "popIn .6s ease-out forwards",
+                }}
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </div>
+        </div>
+
+        {/* MAPA */}
+        {/* Usamos 100dvh para garantir que o mapa ocupe a altura correta no mobile landscape */}
+        <ComposableMap
+          projection="geoEqualEarth"
+          projectionConfig={{ scale: 188 }}
+          width={980}
+          height={500}
+          style={{ width: "100%", height: "100dvh" }}
+        >
+          <ZoomableGroup
+            center={[0, 0]}
+            zoom={1}
+            minZoom={1}
+            maxZoom={8}
+            translateExtent={[
+              [0, 0],
+              [980, 500],
+            ]}
+          >
+            <Geographies geography={geoUrl}>
+              {({ geographies }) =>
+                geographies.map((geo) => {
+                  const countryName = geo.properties.name;
+                  const normalizedName = normalizeCountryName(countryName);
+                  let val = dataMap[normalizedName] ?? dataMap[countryName];
+
+                  if (indicator === "population" && val != null) {
+                    val = val / 1_000_000;
+                  }
+
+                  const iso3 = countries.numericToAlpha3(geo.id);
+                  const iso2 = iso3
+                    ? countries.alpha3ToAlpha2(iso3, "en")
+                    : undefined;
+                  const fillColor =
+                    val !== undefined ? getColor(indicator, val) : "#b9b9b9ff";
+
+                  const tooltipContent = ReactDOMServer.renderToStaticMarkup(
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        {iso2 && (
+                          <ReactCountryFlag
+                            countryCode={iso2}
+                            svg
+                            style={{
+                              width: "1.5em",
+                              height: "1.5em",
+                              borderRadius: "2px",
+                            }}
+                            title={countryName}
+                          />
+                        )}
+                        <strong>{getDisplayName(normalizedName)}</strong>
+                      </span>
+                      {val !== undefined ? (
+                        <span>
+                          {indicatorLabels[indicator]}: {val.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#a1a1a1ff" }}>No data</span>
+                      )}
+                    </div>
+                  );
+
+                  return (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      data-tooltip-id="country-tooltip"
+                      data-tooltip-html={tooltipContent}
+                      style={{
+                        default: {
+                          fill: fillColor,
+                          outline: "none",
+                          transition: "fill 0.3s ease",
+                        },
+                        hover: { fill: "#474747c0", outline: "none" },
+                        pressed: { fill: "#222", outline: "none" },
+                      }}
+                      onClick={() => {
+                        const val =
+                          dataMap[normalizedName] ?? dataMap[countryName];
+                        if (val !== undefined && !isNaN(val)) {
+                          setSelectedCountry(normalizedName);
+                        }
+                      }}
+                    />
+                  );
+                })
+              }
+            </Geographies>
+          </ZoomableGroup>
+        </ComposableMap>
+
+        {/* Controles e Legenda (Estilo Original Desktop) */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 20,
+            left: 20,
+            background: "rgba(0,0,0,0.4)",
+            padding: "10px",
+            borderRadius: "8px",
+            zIndex: 40,
+          }}
+        >
+          <div className="relative mb-3 flex items-center gap-3">
+            <div className="relative flex-1">
+              <select
+                id="indicator"
+                value={indicator}
+                onChange={(e) => setIndicator(e.target.value)}
+                className="w-[220px] appearance-none bg-[#ffffff10] text-white text-sm font-medium
+                px-4 py-2.5 rounded-xl border border-white/30 backdrop-blur-sm
+                hover:bg-[#ffffff15] focus:outline-none focus:ring-2 focus:ring-[#40a9ff]/70 focus:border-[#40a9ff]/70
+                transition duration-300"
+              >
+                {Object.entries(indicatorLabels).map(([key, label]) => (
+                  <option
+                    key={key}
+                    value={key}
+                    className="text-slate-800 bg-white"
+                  >
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="absolute right-[0.6rem] top-[14px] w-4 h-4 text-white/70 pointer-events-none"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            {LEGENDS[indicator].map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  marginBottom: "4px",
+                }}
+              >
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    background: getColor(
+                      indicator,
+                      item.max === Infinity
+                        ? LEGENDS[indicator][i - 1]?.max || 0
+                        : item.max
+                    ),
+                    border: "1px solid #333",
+                    marginRight: 8,
+                  }}
+                />
+                <span style={{ color: "white", fontSize: 12 }}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+
             <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                marginBottom: "4px",
-              }}
+              style={{ display: "flex", alignItems: "center", marginTop: 6 }}
             >
               <div
                 style={{
                   width: 20,
                   height: 20,
-                  background: getColor(
-                    indicator,
-                    item.max === Infinity
-                      ? LEGENDS[indicator][i - 1]?.max || 0
-                      : item.max
-                  ),
+                  background: "#a1a1a1ff",
                   border: "1px solid #333",
                   marginRight: 8,
                 }}
               />
-              <span style={{ color: "white", fontSize: 12 }}>{item.label}</span>
-            </div>
-          ))}
-
-          <div style={{ display: "flex", alignItems: "center", marginTop: 6 }}>
-            <div
-              style={{
-                width: 20,
-                height: 20,
-                background: "#a1a1a1ff",
-                border: "1px solid #333",
-                marginRight: 8,
-              }}
-            />
-            <span style={{ color: "white", fontSize: 12 }}>No data</span>
-            <button
-              onClick={() => setShowInfoModal(true)}
-              className="text-white/80 hover:text-white transition transform hover:scale-110 focus:outline-none"
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginLeft: "auto",
-              }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-5 h-5"
+              <span style={{ color: "white", fontSize: 12 }}>No data</span>
+              <button
+                onClick={() => setShowInfoModal(true)}
+                className="text-white/80 hover:text-white transition transform hover:scale-110 focus:outline-none"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginLeft: "auto",
+                }}
               >
-                <circle cx="12" cy="12" r="9" stroke="currentColor" />
-                <line x1="12" y1="16" x2="12" y2="12" stroke="currentColor" />
-                <circle cx="12" cy="8" r="0.8" fill="currentColor" />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" />
+                  <line x1="12" y1="16" x2="12" y2="12" stroke="currentColor" />
+                  <circle cx="12" cy="8" r="0.8" fill="currentColor" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {showInfoModal &&
-        ReactDOM.createPortal(
-          <InfoModal onClose={() => setShowInfoModal(false)} />,
+        {showInfoModal &&
+          ReactDOM.createPortal(
+            <InfoModal onClose={() => setShowInfoModal(false)} />,
+            document.body
+          )}
+        <Tooltip id="country-tooltip" float />
+        {ReactDOM.createPortal(
+          selectedCountry ? (
+            <CountryDetails
+              country={selectedCountry}
+              indicator={indicator}
+              onClose={() => setSelectedCountry(null)}
+            />
+          ) : null,
           document.body
         )}
-      <Tooltip id="country-tooltip" float />
-      {ReactDOM.createPortal(
-        selectedCountry ? (
-          <CountryDetails
-            country={selectedCountry}
-            indicator={indicator}
-            onClose={() => setSelectedCountry(null)}
-          />
-        ) : null,
-        document.body
-      )}
+      </div>
     </>
   );
 }
