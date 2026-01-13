@@ -303,9 +303,6 @@ export default function WorldMap() {
         >
           Please Rotate Your Device
         </h2>
-        <p style={{ color: "#aaa" }}>
-          This map is optimized for landscape view.
-        </p>
       </div>
 
       {/* CONTAINER PRINCIPAL (Escondido em Mobile Portrait) */}

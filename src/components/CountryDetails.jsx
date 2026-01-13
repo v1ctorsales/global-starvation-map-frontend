@@ -789,9 +789,11 @@ export default function CountryDetails({ country, indicator, onClose }) {
             </Dialog.Close>
 
             {/* GRID PRINCIPAL */}
-            <div className="grid grid-cols-[minmax(260px,30%)_1fr] flex-1 max-md:grid-cols-1 bg-gradient-to-br from-slate-50 to-white">
+            <div className="grid grid-cols-[minmax(260px,30%)_1fr] flex-1 min-h-0 max-lg:grid-cols-1 max-lg:overflow-y-auto bg-gradient-to-br from-slate-50 to-white">
+              {" "}
               {/* Painel esquerdo */}
-              <aside className="pt-4 pl-6 pb-6 flex flex-col gap-6 items-center max-md:py-8 relative">
+              <aside className="pt-4 pl-6 pb-6 flex flex-col gap-6 items-center max-md:py-8 relative overflow-y-auto h-full max-lg:h-auto max-lg:overflow-visible max-lg:w-full">
+                {" "}
                 {/* 🔹 HEADER (comportamento dinâmico) */}
                 <div className="w-full flex flex-col items-center mb-4">
                   {/* Título "Comparison" */}
@@ -877,7 +879,6 @@ export default function CountryDetails({ country, indicator, onClose }) {
                     )}
                   </div>
                 </div>
-
                 {/* 🔹 CONTEÚDO PRINCIPAL */}
                 <AnimatePresence mode="wait">
                   {/* --- MODO PADRÃO --- */}
@@ -1374,7 +1375,6 @@ export default function CountryDetails({ country, indicator, onClose }) {
                   )}
                 </AnimatePresence>
               </aside>
-
               {/* Painel direito */}
               <main className="p-8 flex flex-col min-w-0">
                 <div className="rounded-2xl flex-1 bg-white border border-slate-200 relative min-h-[420px] shadow-sm">
