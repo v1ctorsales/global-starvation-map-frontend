@@ -139,22 +139,57 @@ export default function WorldMap() {
   // Estado para o efeito de digitação
   const [typedText, setTypedText] = useState("");
 
-  // 1. Timers Globais
+  // 1. Timers Globais Inteligentes
   useEffect(() => {
+    // Registra o momento exato em que o componente montou
+    const startTime = Date.now();
+    const ANIMATION_DURATION = 3100; // Tempo para o "check"
+    const TOTAL_LOADING_TIME = 4000; // Tempo para sair o overlay
+
     setShowLoadingUI(true);
     setIsLoadingComplete(false);
 
-    const completionTimer = setTimeout(() => {
-      setIsLoadingComplete(true);
-    }, 4100);
+    // Função para verificar se o tempo já passou
+    const checkTime = () => {
+      const elapsed = Date.now() - startTime;
 
-    const fadeOutTimer = setTimeout(() => {
-      setShowLoadingUI(false);
-    }, 5000);
+      if (elapsed >= ANIMATION_DURATION) {
+        setIsLoadingComplete(true);
+      }
+
+      if (elapsed >= TOTAL_LOADING_TIME) {
+        setShowLoadingUI(false);
+      }
+    };
+
+    // Timer principal (ainda útil para quando a aba ESTÁ ativa)
+    const timerCheck = setTimeout(
+      () => setIsLoadingComplete(true),
+      ANIMATION_DURATION
+    );
+    const timerFade = setTimeout(
+      () => setShowLoadingUI(false),
+      TOTAL_LOADING_TIME
+    );
+
+    // Listener de Visibilidade: O "Plano B" robusto
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Assim que o usuário volta, verificamos o relógio
+        // Se já passou do tempo, forçamos o estado final imediatamente
+        const elapsed = Date.now() - startTime;
+
+        if (elapsed > ANIMATION_DURATION) setIsLoadingComplete(true);
+        if (elapsed > TOTAL_LOADING_TIME) setShowLoadingUI(false);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearTimeout(completionTimer);
-      clearTimeout(fadeOutTimer);
+      clearTimeout(timerCheck);
+      clearTimeout(timerFade);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -178,12 +213,17 @@ export default function WorldMap() {
   // 3. Chamada da API
   useEffect(() => {
     setIsLoadingApi(true);
+    const controller = new AbortController();
+
     axios
-      .get(`${API}/latest?indicator=${indicator}`)
+      .get(`${API}/latest?indicator=${indicator}`, {
+        signal: controller.signal,
+      })
       .then((res) => {
         setData(Array.isArray(res.data) ? res.data : []);
       })
       .catch((err) => {
+        if (axios.isCancel(err)) return;
         console.error("Erro na requisição:", err);
         setData([]);
       })
@@ -191,8 +231,9 @@ export default function WorldMap() {
         setIsLoadingApi(false);
         setHasLoadedFirstTime(true);
       });
-  }, [indicator]);
 
+    return () => controller.abort();
+  }, [indicator]);
   const isOverlayActive = showLoadingUI || !hasLoadedFirstTime;
 
   const dataMap = {};
